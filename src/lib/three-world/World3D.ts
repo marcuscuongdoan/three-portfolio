@@ -36,6 +36,7 @@ export class World3D {
   private mixer?: THREE.AnimationMixer;
   private idleAction?: THREE.AnimationAction;
   private sneakPoseAction?: THREE.AnimationAction;
+  private sadPoseAction?: THREE.AnimationAction;
   private agreeAction?: THREE.AnimationAction;
   private onCameraAnimationComplete?: () => void;
   private tweenGroup: TWEEN.Group;
@@ -89,7 +90,7 @@ export class World3D {
 
     // Setup scene
     this.setupLights();
-    this.setupGround();
+    // this.setupGround();
 
     // Handle window resize
     window.addEventListener('resize', this.handleResize);
@@ -179,7 +180,12 @@ export class World3D {
             
             // Find sneak_pose animation
             const sneakPoseAnimation = gltf.animations.find(anim => 
-              anim.name.toLowerCase().includes('sneak') || anim.name.toLowerCase().includes('pose')
+              anim.name.toLowerCase().includes('sneak')
+            );
+
+            // Find sneak_pose animation
+            const sadPoseAnimation = gltf.animations.find(anim => 
+              anim.name.toLowerCase().includes('sad')
             );
             
             // Find agree animation
@@ -198,6 +204,12 @@ export class World3D {
               this.sneakPoseAction.setLoop(THREE.LoopOnce, 1);
               this.sneakPoseAction.clampWhenFinished = true;
             }
+
+            if (sadPoseAnimation) {
+              this.sadPoseAction = this.mixer.clipAction(sadPoseAnimation);
+              this.sadPoseAction.setLoop(THREE.LoopOnce, 1);
+              this.sadPoseAction.clampWhenFinished = true;
+            }
             
             if (agreeAnimation) {
               this.agreeAction = this.mixer.clipAction(agreeAnimation);
@@ -211,8 +223,8 @@ export class World3D {
             }
             
             // Start with sneak_pose animation
-            if (this.sneakPoseAction) {
-              this.sneakPoseAction.play();
+            if (this.sadPoseAction) {
+              this.sadPoseAction.play();
               console.log('Playing sneak_pose animation');
             } else if (this.idleAction) {
               // Fallback to idle if sneak_pose not found
