@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, ReactNode } from "react";
-import World3DCanvas from "@/components/World3DCanvas";
+import { useState, useEffect, useRef, ReactNode, cloneElement, isValidElement } from "react";
+import World3DCanvas, { World3DCanvasRef } from "@/components/World3DCanvas";
 import Navbar from "@/components/Navbar";
 import CloudBackground, { CloudBackgroundRef } from "@/components/CloudBackground";
 
@@ -27,6 +27,28 @@ export default function BaseLayout({
   const [showContent, setShowContent] = useState(false);
   const [showNav, setShowNav] = useState(false);
   const cloudRef = useRef<CloudBackgroundRef>(null);
+  const world3DRef = useRef<World3DCanvasRef>(null);
+
+  // Function to play character animation
+  const playCharacterAnimation = (animationName: string, loop: boolean = true, fadeTime: number = 0.3) => {
+    if (world3DRef.current) {
+      return world3DRef.current.playCharacterAnimation(animationName, loop, fadeTime);
+    }
+    return false;
+  };
+
+  // Function to adjust camera position
+  const adjustCamera = (options: {
+    position?: { x: number; y: number; z: number };
+    lookAt?: { x: number; y: number; z: number };
+    duration?: number;
+    easing?: (amount: number) => number;
+    onComplete?: () => void;
+  }) => {
+    if (world3DRef.current) {
+      world3DRef.current.adjustCamera(options);
+    }
+  };
 
   useEffect(() => {
     // Fade in all content after 0.5 seconds
@@ -59,13 +81,15 @@ export default function BaseLayout({
   }, [enableCloudControls]);
 
   return (
-    <main className={`w-screen h-screen overflow-hidden bg-black relative ${className}`}>
-      {/* Cloud Background */}
-      <CloudBackground 
-        ref={cloudRef} 
-        opacity={cloudOpacity} 
-        maxClouds={maxClouds}
-      />
+    <main className="w-screen h-screen overflow-hidden bg-black relative">
+      {/* Cloud Background - Fixed */}
+      <div className="fixed inset-0 z-0">
+        <CloudBackground 
+          ref={cloudRef} 
+          opacity={cloudOpacity} 
+          maxClouds={maxClouds}
+        />
+      </div>
       
       {/* Main Content with fade-in */}
       <div
@@ -73,25 +97,38 @@ export default function BaseLayout({
           opacity: showContent ? 1 : 0,
           transition: 'opacity 1s ease-in',
         }}
+        className="relative z-10 h-full"
       >
-        {/* Navbar */}
-        {showNavbar && <Navbar show={showNav} />}
+        {/* Navbar - Fixed */}
+        {showNavbar && (
+          <div className="fixed top-0 left-0 right-0 z-50">
+            <Navbar show={showNav} />
+          </div>
+        )}
         
-        {/* 3D Canvas */}
-        <div className="absolute inset-0 pt-16">
+        {/* 3D Canvas - Fixed */}
+        <div className="fixed inset-0 pt-16 z-30 pointer-events-none">
           <World3DCanvas 
+            ref={world3DRef}
             className="w-full h-full" 
             characterModelPath={characterModelPath}
           />
         </div>
         
-        {/* Children Content */}
+        {/* Children Content - Scrollable with Snap */}
         {children && (
-          <div className="absolute inset-0 pt-16 pointer-events-none">
-            {children}
+          <div className={`relative z-20 h-full overflow-y-auto overflow-x-hidden pt-16 ${className}`}>
+            <div className="pointer-events-auto">
+              {/* Clone children and inject playCharacterAnimation and adjustCamera functions */}
+              {isValidElement(children) 
+                ? cloneElement(children, { playCharacterAnimation, adjustCamera } as any)
+                : children
+              }
+            </div>
           </div>
         )}
       </div>
     </main>
   );
+
 }

@@ -2,9 +2,21 @@
 
 import { useState, useEffect } from "react";
 import BaseLayout from "@/components/BaseLayout";
+import About from "@/components/About";
 import { motion } from "framer-motion";
 
-export default function Home() {
+interface HomeContentProps {
+  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number) => boolean;
+  adjustCamera?: (options: {
+    position?: { x: number; y: number; z: number };
+    lookAt?: { x: number; y: number; z: number };
+    duration?: number;
+    easing?: (amount: number) => number;
+    onComplete?: () => void;
+  }) => void;
+}
+
+function HomeContent({ playCharacterAnimation, adjustCamera }: HomeContentProps) {
   const [showText, setShowText] = useState(false);
 
   useEffect(() => {
@@ -15,14 +27,9 @@ export default function Home() {
   }, []);
 
   return (
-    <BaseLayout
-      showNavbar={true}
-      cloudOpacity={0.3}
-      maxClouds={50}
-      enableCloudControls={true}
-    >
-      {/* Page-specific content */}
-      <div className="w-full h-full max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-end">
+    <>
+      {/* Hero Section */}
+      <div id="home" className="w-full h-screen max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-end snap-start snap-always">
         <motion.div
           initial={{ opacity: 0, filter: "blur(10px)" }}
           animate={{ 
@@ -37,6 +44,23 @@ export default function Home() {
           <p className="text-sm text-right">by Marcus - Cuong Doan</p>
         </motion.div>
       </div>
+
+      {/* About Section */}
+      <About playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
+    </>
+  );
+}
+
+export default function Home() {
+  return (
+    <BaseLayout
+      showNavbar={true}
+      cloudOpacity={0.3}
+      maxClouds={50}
+      enableCloudControls={true}
+      className="snap-y snap-mandatory"
+    >
+      <HomeContent />
     </BaseLayout>
   );
 }

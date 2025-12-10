@@ -38,8 +38,11 @@ export class World3D {
   private sneakPoseAction?: THREE.AnimationAction;
   private sadPoseAction?: THREE.AnimationAction;
   private agreeAction?: THREE.AnimationAction;
+  private runAction?: THREE.AnimationAction;
+  private walkAction?: THREE.AnimationAction;
   private onCameraAnimationComplete?: () => void;
   private tweenGroup: TWEEN.Group;
+  private currentAnimationAction?: THREE.AnimationAction;
 
   // Double-click detection
   private lastClickTime: number = 0;
@@ -198,6 +201,16 @@ export class World3D {
               anim.name.toLowerCase().includes('idle')
             );
             
+            // Find run animation
+            const runAnimation = gltf.animations.find(anim => 
+              anim.name.toLowerCase().includes('run')
+            );
+            
+            // Find walk animation
+            const walkAnimation = gltf.animations.find(anim => 
+              anim.name.toLowerCase().includes('walk')
+            );
+            
             // Setup animation actions
             if (sneakPoseAnimation) {
               this.sneakPoseAction = this.mixer.clipAction(sneakPoseAnimation);
@@ -220,6 +233,16 @@ export class World3D {
             if (idleAnimation) {
               this.idleAction = this.mixer.clipAction(idleAnimation);
               this.idleAction.setLoop(THREE.LoopRepeat, Infinity);
+            }
+            
+            if (runAnimation) {
+              this.runAction = this.mixer.clipAction(runAnimation);
+              this.runAction.setLoop(THREE.LoopRepeat, Infinity);
+            }
+            
+            if (walkAnimation) {
+              this.walkAction = this.mixer.clipAction(walkAnimation);
+              this.walkAction.setLoop(THREE.LoopRepeat, Infinity);
             }
             
             // Start with sneak_pose animation
@@ -421,6 +444,195 @@ export class World3D {
 
   public onCameraZoomComplete(callback: () => void) {
     this.onCameraAnimationComplete = callback;
+  }
+
+  /**
+   * Adjust camera position and rotation with smooth animation
+   * @param options - Camera adjustment options
+   * @param options.position - Target camera position {x, y, z}
+   * @param options.lookAt - Target look-at position {x, y, z}
+   * @param options.duration - Animation duration in milliseconds (default: 1000)
+   * @param options.easing - TWEEN easing function (default: Quadratic.InOut)
+   * @param options.onComplete - Callback when animation completes
+   */
+  public adjustCamera(options: {
+    position?: { x: number; y: number; z: number };
+    lookAt?: { x: number; y: number; z: number };
+    duration?: number;
+    easing?: (amount: number) => number;
+    onComplete?: () => void;
+  }): void {
+    const {
+      position,
+      lookAt,
+      duration = 1000,
+      easing = TWEEN.Easing.Quadratic.InOut,
+      onComplete
+    } = options;
+
+    // Stop any existing tweens on the camera
+    this.tweenGroup.removeAll();
+
+    if (position) {
+      // Animate camera position
+      const cameraPositionTween = new TWEEN.Tween(this.camera.position, this.tweenGroup)
+        .to(position, duration)
+        .easing(easing);
+      
+      if (lookAt) {
+        // Animate look-at target as well
+        const currentLookAt = new THREE.Vector3();
+        this.camera.getWorldDirection(currentLookAt);
+        currentLookAt.add(this.camera.position);
+        
+        const lookAtTarget = { 
+          x: currentLookAt.x, 
+          y: currentLookAt.y, 
+          z: currentLookAt.z 
+        };
+        
+        const lookAtTween = new TWEEN.Tween(lookAtTarget, this.tweenGroup)
+          .to(lookAt, duration)
+          .easing(easing)
+          .onUpdate(() => {
+            this.camera.lookAt(lookAtTarget.x, lookAtTarget.y, lookAtTarget.z);
+          })
+          .onComplete(() => {
+            if (onComplete) {
+              onComplete();
+            }
+          });
+        
+        cameraPositionTween.start();
+        lookAtTween.start();
+      } else {
+        // Only position, no look-at
+        cameraPositionTween.onComplete(() => {
+          if (onComplete) {
+            onComplete();
+          }
+        });
+        cameraPositionTween.start();
+      }
+    } else if (lookAt) {
+      // Only animate look-at
+      const currentLookAt = new THREE.Vector3();
+      this.camera.getWorldDirection(currentLookAt);
+      currentLookAt.add(this.camera.position);
+      
+      const lookAtTarget = { 
+        x: currentLookAt.x, 
+        y: currentLookAt.y, 
+        z: currentLookAt.z 
+      };
+      
+      const lookAtTween = new TWEEN.Tween(lookAtTarget, this.tweenGroup)
+        .to(lookAt, duration)
+        .easing(easing)
+        .onUpdate(() => {
+          this.camera.lookAt(lookAtTarget.x, lookAtTarget.y, lookAtTarget.z);
+        })
+        .onComplete(() => {
+          if (onComplete) {
+            onComplete();
+          }
+        });
+      
+      lookAtTween.start();
+    }
+  }
+
+  /**
+   * Play a character animation by name
+   * @param animationName - Name of the animation to play (e.g., 'run', 'walk', 'idle', 'agree')
+   * @param loop - Whether to loop the animation (default: true for continuous animations)
+   * @param fadeTime - Fade transition time in seconds (default: 0.3)
+   * @returns true if animation exists and was played, false otherwise
+   */
+  public playCharacterAnimation(
+    animationName: string, 
+    loop: boolean = true, 
+    fadeTime: number = 0.3
+  ): boolean {
+    if (!this.mixer) {
+      console.warn('Animation mixer not initialized');
+      return false;
+    }
+
+    const animName = animationName.toLowerCase();
+    let targetAction: THREE.AnimationAction | undefined;
+
+    // Map animation name to action
+    switch (animName) {
+      case 'run':
+        targetAction = this.runAction;
+        break;
+      case 'walk':
+        targetAction = this.walkAction;
+        break;
+      case 'idle':
+        targetAction = this.idleAction;
+        break;
+      case 'agree':
+        targetAction = this.agreeAction;
+        break;
+      case 'sneak':
+        targetAction = this.sneakPoseAction;
+        break;
+      case 'sad':
+        targetAction = this.sadPoseAction;
+        break;
+      default:
+        console.warn(`Animation '${animationName}' not found`);
+        return false;
+    }
+
+    if (!targetAction) {
+      console.warn(`Animation '${animationName}' is not loaded`);
+      return false;
+    }
+
+    // If it's already the current animation, don't restart
+    if (this.currentAnimationAction === targetAction && targetAction.isRunning()) {
+      return true;
+    }
+
+    // Fade out current animation
+    if (this.currentAnimationAction && this.currentAnimationAction !== targetAction) {
+      this.currentAnimationAction.fadeOut(fadeTime);
+    }
+
+    // Set loop mode
+    if (loop) {
+      targetAction.setLoop(THREE.LoopRepeat, Infinity);
+    } else {
+      targetAction.setLoop(THREE.LoopOnce, 1);
+      targetAction.clampWhenFinished = true;
+    }
+
+    // Fade in and play new animation
+    targetAction.reset();
+    targetAction.fadeIn(fadeTime);
+    targetAction.play();
+    
+    this.currentAnimationAction = targetAction;
+    console.log(`Playing animation: ${animationName}`);
+
+    // If it's a one-time animation, listen for completion and return to idle
+    if (!loop && animName !== 'idle') {
+      const onAnimationComplete = (event: any) => {
+        if (event.action === targetAction) {
+          this.mixer?.removeEventListener('finished', onAnimationComplete);
+          // Return to idle after one-time animation completes
+          setTimeout(() => {
+            this.playCharacterAnimation('idle', true, fadeTime);
+          }, 500);
+        }
+      };
+      this.mixer.addEventListener('finished', onAnimationComplete);
+    }
+
+    return true;
   }
 
   private switchToAgreeAnimation() {

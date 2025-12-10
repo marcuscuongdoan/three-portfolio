@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { World3D } from '@/lib/three-world/World3D';
 
 interface World3DCanvasProps {
@@ -9,15 +9,47 @@ interface World3DCanvasProps {
   onCameraAnimationComplete?: () => void;
 }
 
-export default function World3DCanvas({ 
+export interface World3DCanvasRef {
+  playCharacterAnimation: (animationName: string, loop?: boolean, fadeTime?: number) => boolean;
+  adjustCamera: (options: {
+    position?: { x: number; y: number; z: number };
+    lookAt?: { x: number; y: number; z: number };
+    duration?: number;
+    easing?: (amount: number) => number;
+    onComplete?: () => void;
+  }) => void;
+}
+
+const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({ 
   characterModelPath = '/models/bot.glb',
   className = '',
   onCameraAnimationComplete
-}: World3DCanvasProps) {
+}, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<World3D | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Expose playCharacterAnimation and adjustCamera functions to parent components
+  useImperativeHandle(ref, () => ({
+    playCharacterAnimation: (animationName: string, loop: boolean = true, fadeTime: number = 0.3) => {
+      if (worldRef.current) {
+        return worldRef.current.playCharacterAnimation(animationName, loop, fadeTime);
+      }
+      return false;
+    },
+    adjustCamera: (options: {
+      position?: { x: number; y: number; z: number };
+      lookAt?: { x: number; y: number; z: number };
+      duration?: number;
+      easing?: (amount: number) => number;
+      onComplete?: () => void;
+    }) => {
+      if (worldRef.current) {
+        worldRef.current.adjustCamera(options);
+      }
+    }
+  }));
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -85,4 +117,8 @@ export default function World3DCanvas({
       )}
     </div>
   );
-}
+});
+
+World3DCanvas.displayName = 'World3DCanvas';
+
+export default World3DCanvas;
