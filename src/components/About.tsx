@@ -7,7 +7,7 @@ import Image from "next/image";
 import SectionLayout from "@/components/SectionLayout";
 
 interface AboutProps {
-  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number) => boolean;
+  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
   adjustCamera?: (options: {
     position?: { x: number; y: number; z: number };
     lookAt?: { x: number; y: number; z: number };
@@ -76,8 +76,8 @@ export default function About({ playCharacterAnimation, adjustCamera }: AboutPro
   // Trigger walk animation and adjust camera when About section is in view
   useEffect(() => {
     if (isInView) {
-      // Play walk animation
-      playCharacterAnimation?.('walk', true, 0.5);
+      // Play walk animation with default head tracking
+      playCharacterAnimation?.('walk', true, 0.5, true);
 
       // Adjust camera position
       adjustCamera?.({

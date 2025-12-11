@@ -45,6 +45,19 @@ export class World3D {
   private tweenGroup: TWEEN.Group;
   private currentAnimationAction?: THREE.AnimationAction;
 
+  // Character highlighting lights
+  private characterSpotlight?: THREE.SpotLight;
+  private characterRimLight?: THREE.PointLight;
+
+  // Head bone for look-at
+  private headBone?: THREE.Bone;
+  private headBoneOriginalRotation?: THREE.Quaternion;
+  private enableHeadTracking: boolean = false; // Control head look-at behavior (disabled by default)
+  private mousePosition: THREE.Vector2 = new THREE.Vector2(0, 0);
+  private lookAtTarget: THREE.Vector3 = new THREE.Vector3();
+  private defaultLookAtTarget?: THREE.Object3D; // Default target in front of character
+  private isMouseInWindow: boolean = true; // Track if mouse is in window
+
   // Double-click detection
   private lastClickTime: number = 0;
   private doubleClickDelay: number = 300; // milliseconds
@@ -98,14 +111,18 @@ export class World3D {
 
     // Handle window resize
     window.addEventListener('resize', this.handleResize);
+    
+    // Track mouse movement for head tracking on document level
+    document.addEventListener('mousemove', this.handleMouseMove);
+    document.addEventListener('mouseleave', this.handleMouseLeave);
   }
 
   private setupLights() {
-    // Ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Bright ambient light for well-lit, natural look
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     this.scene.add(ambientLight);
 
-    // Directional light (sun)
+    // Bright, soft directional light (sun)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(50, 50, 50);
     directionalLight.castShadow = true;
@@ -118,6 +135,22 @@ export class World3D {
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
     this.scene.add(directionalLight);
+
+    // Very soft spotlight for subtle character accent
+    this.characterSpotlight = new THREE.SpotLight(0xffffff, 2); // Pure white, very low intensity
+    this.characterSpotlight.position.set(0, 6, 3);
+    this.characterSpotlight.angle = Math.PI / 3; // 60 degrees - very wide cone
+    this.characterSpotlight.penumbra = 0.95; // Almost completely diffuse edge
+    this.characterSpotlight.decay = 2;
+    this.characterSpotlight.distance = 20;
+    this.characterSpotlight.castShadow = false; // Disable shadow for softer look
+    this.scene.add(this.characterSpotlight);
+    this.scene.add(this.characterSpotlight.target);
+
+    // Very subtle blue accent from behind
+    this.characterRimLight = new THREE.PointLight(0xaabbff, 1.5, 12); // Very soft pale blue, minimal intensity
+    this.characterRimLight.position.set(0, 2, -2);
+    this.scene.add(this.characterRimLight);
   }
 
   private setupGround() {
@@ -170,10 +203,18 @@ export class World3D {
           // Position character at origin
           this.characterModel.position.set(0, 0, 0);
           
-          // Rotate character to look slightly to the right
+          // Rotate character to look slightly to the right (body angle)
           this.characterModel.rotation.y = Math.PI * 0.15; // About 27 degrees to the right
 
           this.scene.add(this.characterModel);
+
+          // Create default look-at target in front of character
+          this.defaultLookAtTarget = new THREE.Object3D();
+          this.defaultLookAtTarget.position.set(0, 2.2, 2); // In front and slightly above head height
+          this.scene.add(this.defaultLookAtTarget);
+
+          // Find the head bone to make it look at camera
+          this.findHeadBone(this.characterModel);
 
           // Log available animations
           console.log('Available animations:', gltf.animations.map(a => a.name));
@@ -334,9 +375,44 @@ export class World3D {
     // Update TWEEN animations with timestamp using our group
     this.tweenGroup.update(time);
 
-    // Update animation mixer for idle animation
+    // Update animation mixer for idle animation FIRST
     if (this.mixer) {
       this.mixer.update(deltaTime);
+    }
+
+    // IMPORTANT: Make head look at camera AFTER animation update
+    // Only override if head tracking is enabled
+    if (this.headBone && this.characterModel && this.enableHeadTracking) {
+      this.updateHeadLookAt();
+    }
+
+    // Update character highlighting lights to follow character
+    if (this.characterModel) {
+      const characterPosition = this.characterModel.position;
+      
+      // Update spotlight position and target (from front and above)
+      if (this.characterSpotlight) {
+        this.characterSpotlight.position.set(
+          characterPosition.x,
+          characterPosition.y + 6,
+          characterPosition.z + 3
+        );
+        this.characterSpotlight.target.position.set(
+          characterPosition.x,
+          characterPosition.y + 1,
+          characterPosition.z
+        );
+        this.characterSpotlight.target.updateMatrixWorld();
+      }
+
+      // Update rim light position (behind character for backlight effect)
+      if (this.characterRimLight) {
+        this.characterRimLight.position.set(
+          characterPosition.x,
+          characterPosition.y + 2,
+          characterPosition.z - 2
+        );
+      }
     }
 
     // Render the scene
@@ -397,6 +473,25 @@ export class World3D {
     }
   };
 
+  private handleMouseMove = (event: MouseEvent) => {
+    // Check if mouse is within window bounds
+    const isInBounds = 
+      event.clientX >= 0 && 
+      event.clientX <= window.innerWidth && 
+      event.clientY >= 0 && 
+      event.clientY <= window.innerHeight;
+    
+    this.isMouseInWindow = isInBounds;
+    
+    // Update mouse position in normalized device coordinates (-1 to +1)
+    this.mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
+    this.mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  };
+
+  private handleMouseLeave = () => {
+    this.isMouseInWindow = false;
+  };
+
   private handleWheel = (event: WheelEvent) => {
     event.preventDefault();
     
@@ -412,6 +507,8 @@ export class World3D {
     
     // Cleanup
     window.removeEventListener('resize', this.handleResize);
+    document.removeEventListener('mousemove', this.handleMouseMove);
+    document.removeEventListener('mouseleave', this.handleMouseLeave);
     this.renderer.domElement.removeEventListener('click', this.handleClick);
     this.renderer.domElement.removeEventListener('wheel', this.handleWheel);
     
@@ -559,12 +656,14 @@ export class World3D {
    * @param animationName - Name of the animation to play (e.g., 'run', 'walk', 'idle', 'agree')
    * @param loop - Whether to loop the animation (default: true for continuous animations)
    * @param fadeTime - Fade transition time in seconds (default: 0.3)
+   * @param lookAtCamera - Whether the character's head should look at the camera (default: true)
    * @returns true if animation exists and was played, false otherwise
    */
   public playCharacterAnimation(
     animationName: string, 
     loop: boolean = true, 
-    fadeTime: number = 0.3
+    fadeTime: number = 0.3,
+    lookAtCamera: boolean = false
   ): boolean {
     if (!this.mixer) {
       console.warn('Animation mixer not initialized');
@@ -631,7 +730,11 @@ export class World3D {
     targetAction.play();
     
     this.currentAnimationAction = targetAction;
-    console.log(`Playing animation: ${animationName}`);
+    
+    // Set head tracking based on parameter
+    this.enableHeadTracking = lookAtCamera;
+    
+    console.log(`Playing animation: ${animationName}, head tracking: ${lookAtCamera}`);
 
     // If it's a one-time animation, listen for completion and return to idle
     if (!loop && animName !== 'idle') {
@@ -640,7 +743,7 @@ export class World3D {
           this.mixer?.removeEventListener('finished', onAnimationComplete);
           // Return to idle after one-time animation completes
           setTimeout(() => {
-            this.playCharacterAnimation('idle', true, fadeTime);
+            this.playCharacterAnimation('idle', true, fadeTime, lookAtCamera);
           }, 500);
         }
       };
@@ -648,6 +751,23 @@ export class World3D {
     }
 
     return true;
+  }
+
+  /**
+   * Enable or disable head tracking to camera
+   * @param enable - Whether to enable head tracking
+   */
+  public setHeadTracking(enable: boolean): void {
+    this.enableHeadTracking = enable;
+    console.log(`Head tracking ${enable ? 'enabled' : 'disabled'}`);
+  }
+
+  /**
+   * Get current head tracking state
+   * @returns true if head tracking is enabled
+   */
+  public isHeadTrackingEnabled(): boolean {
+    return this.enableHeadTracking;
   }
 
   private switchToAgreeAnimation() {
@@ -694,5 +814,91 @@ export class World3D {
     this.idleAction.play();
     
     console.log('Playing idle animation');
+  }
+
+  /**
+   * Find the head bone in the character model
+   */
+  private findHeadBone(model: THREE.Group): void {
+    model.traverse((child: THREE.Object3D) => {
+      if (child instanceof THREE.Bone) {
+        const boneName = child.name.toLowerCase();
+        // Look for common head bone names
+        if (boneName.includes('head') && !boneName.includes('top')) {
+          if (!this.headBone) { // Only get the first head bone found
+            this.headBone = child;
+            this.headBoneOriginalRotation = child.quaternion.clone();
+            console.log('Found head bone:', child.name);
+            return;
+          }
+        }
+      }
+    });
+
+    if (!this.headBone) {
+      console.warn('Head bone not found in character model');
+    }
+  }
+
+  /**
+   * Make the character's head look at the mouse cursor position or default target
+   */
+  private updateHeadLookAt(): void {
+    if (!this.headBone || !this.camera || !this.defaultLookAtTarget) return;
+
+    // Get head world position
+    const headWorldPos = new THREE.Vector3();
+    this.headBone.getWorldPosition(headWorldPos);
+    
+    // If mouse is outside window, look at default target
+    if (!this.isMouseInWindow) {
+      this.lookAtTarget.copy(this.defaultLookAtTarget.position);
+    } else {
+      // Create a raycaster from mouse position
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(this.mousePosition, this.camera);
+      
+      // Create an invisible plane at the character's position, facing the camera
+      // This gives us a consistent reference plane to raycast against
+      const planeNormal = new THREE.Vector3();
+      planeNormal.subVectors(this.camera.position, headWorldPos).normalize();
+      const plane = new THREE.Plane();
+      plane.setFromNormalAndCoplanarPoint(planeNormal, headWorldPos);
+      
+      // Raycast to the plane to get the 3D point where mouse is pointing
+      const intersectPoint = new THREE.Vector3();
+      raycaster.ray.intersectPlane(plane, intersectPoint);
+      
+      if (intersectPoint) {
+        this.lookAtTarget.copy(intersectPoint);
+      } else {
+        // Fallback to default target
+        this.lookAtTarget.copy(this.defaultLookAtTarget.position);
+      }
+    }
+
+    // Get parent's world quaternion to convert to local space
+    if (this.headBone.parent) {
+      const parentWorldQuat = new THREE.Quaternion();
+      this.headBone.parent.getWorldQuaternion(parentWorldQuat);
+      
+      // Create a temporary object to calculate look-at in world space
+      const lookAtHelper = new THREE.Object3D();
+      lookAtHelper.position.copy(headWorldPos);
+      lookAtHelper.lookAt(this.lookAtTarget);
+      
+      // Get the world quaternion for looking at target
+      const targetWorldQuat = lookAtHelper.quaternion.clone();
+      
+      // Convert to local space by multiplying with parent's inverse
+      const parentInverseQuat = parentWorldQuat.clone().invert();
+      const targetLocalQuat = parentInverseQuat.multiply(targetWorldQuat);
+      
+      // Smoothly interpolate to target rotation for very smooth, gradual movement
+      this.headBone.quaternion.slerp(targetLocalQuat, 0.05);
+      
+      // Force matrix update
+      this.headBone.updateMatrix();
+    }
   }
 }

@@ -30,9 +30,9 @@ export default function BaseLayout({
   const world3DRef = useRef<World3DCanvasRef>(null);
 
   // Function to play character animation
-  const playCharacterAnimation = (animationName: string, loop: boolean = true, fadeTime: number = 0.3) => {
+  const playCharacterAnimation = (animationName: string, loop: boolean = true, fadeTime: number = 0.3, lookAtCamera: boolean = true) => {
     if (world3DRef.current) {
-      return world3DRef.current.playCharacterAnimation(animationName, loop, fadeTime);
+      return world3DRef.current.playCharacterAnimation(animationName, loop, fadeTime, lookAtCamera);
     }
     return false;
   };
@@ -105,7 +105,7 @@ export default function BaseLayout({
         )}
         
         {/* 3D Canvas - Fixed */}
-        <div className="fixed inset-0 z-30 pointer-events-none">
+        <div className="fixed inset-0 z-30 pointer-events-none opacity-90">
           <World3DCanvas 
             ref={world3DRef}
             className="w-full h-full" 

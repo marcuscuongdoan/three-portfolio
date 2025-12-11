@@ -10,7 +10,7 @@ interface World3DCanvasProps {
 }
 
 export interface World3DCanvasRef {
-  playCharacterAnimation: (animationName: string, loop?: boolean, fadeTime?: number) => boolean;
+  playCharacterAnimation: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
   adjustCamera: (options: {
     position?: { x: number; y: number; z: number };
     lookAt?: { x: number; y: number; z: number };
@@ -32,9 +32,9 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
 
   // Expose playCharacterAnimation and adjustCamera functions to parent components
   useImperativeHandle(ref, () => ({
-    playCharacterAnimation: (animationName: string, loop: boolean = true, fadeTime: number = 0.3) => {
+    playCharacterAnimation: (animationName: string, loop: boolean = true, fadeTime: number = 0.3, lookAtCamera: boolean = true) => {
       if (worldRef.current) {
-        return worldRef.current.playCharacterAnimation(animationName, loop, fadeTime);
+        return worldRef.current.playCharacterAnimation(animationName, loop, fadeTime, lookAtCamera);
       }
       return false;
     },

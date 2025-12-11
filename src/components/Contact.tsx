@@ -5,7 +5,7 @@ import { motion, useInView } from "framer-motion";
 import SectionLayout from "@/components/SectionLayout";
 
 interface ContactProps {
-  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number) => boolean;
+  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
   adjustCamera?: (options: {
     position?: { x: number; y: number; z: number };
     lookAt?: { x: number; y: number; z: number };
@@ -35,7 +35,7 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
   // Trigger run animation and adjust camera when Contact section is in view
   useEffect(() => {
     if (isInView) {
-      // Play run animation
+      // Play run animation with default head tracking
       playCharacterAnimation?.("run", true, 0.5);
 
       // Move camera a bit away
