@@ -81,7 +81,7 @@ export default function BaseLayout({
   }, [enableCloudControls]);
 
   return (
-    <main className="w-screen h-screen overflow-hidden bg-black relative">
+    <main className="w-screen h-screen overflow-hidden bg-background relative">
       {/* Cloud Background - Fixed */}
       <div className="fixed inset-0 z-0">
         <CloudBackground 
@@ -101,13 +101,11 @@ export default function BaseLayout({
       >
         {/* Navbar - Fixed */}
         {showNavbar && (
-          <div className="fixed top-0 left-0 right-0 z-50">
-            <Navbar show={showNav} />
-          </div>
+          <Navbar show={showNav} />
         )}
         
         {/* 3D Canvas - Fixed */}
-        <div className="fixed inset-0 pt-16 z-30 pointer-events-none">
+        <div className="fixed inset-0 z-30 pointer-events-none">
           <World3DCanvas 
             ref={world3DRef}
             className="w-full h-full" 
@@ -117,7 +115,7 @@ export default function BaseLayout({
         
         {/* Children Content - Scrollable with Snap */}
         {children && (
-          <div className={`relative z-20 h-full overflow-y-auto overflow-x-hidden pt-16 ${className}`}>
+          <div className={`relative z-20 h-full overflow-y-auto overflow-x-hidden ${className}`}>
             <div className="pointer-events-auto">
               {/* Clone children and inject playCharacterAnimation and adjustCamera functions */}
               {isValidElement(children) 

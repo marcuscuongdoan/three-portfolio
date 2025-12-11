@@ -16,7 +16,7 @@ export default function Navbar({ show = false }: NavbarProps) {
   const navItems = [
     { name: "Home", href: "#home", isAnchor: true },
     { name: "About", href: "#about", isAnchor: true },
-    { name: "Contact", href: "/contact" },
+    { name: "Contact", href: "#contact", isAnchor: true },
   ];
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function Navbar({ show = false }: NavbarProps) {
     const observer = new IntersectionObserver(observerCallback, observerOptions);
 
     // Observe sections
-    const sections = ["home", "about"];
+    const sections = ["home", "about", "contact"];
     sections.forEach((sectionId) => {
       const element = document.getElementById(sectionId);
       if (element) {
@@ -74,34 +74,35 @@ export default function Navbar({ show = false }: NavbarProps) {
 
   return (
     <motion.nav
-      initial={{ y: -100 }}
-      animate={{ y: show ? 0 : -100 }}
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: show ? 0 : -100, opacity: show ? 1 : 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
+      className="fixed top-0 left-0 z-50 w-full pointer-events-none flex justify-center"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex-shrink-0">
-            <Link href="/" className="text-xl font-bold text-gray-900 dark:text-white">
-              Portfolio
+      <div className="pt-6">
+        <div className="relative inline-flex items-center bg-white/90 backdrop-blur-md rounded-full p-1.5 shadow-lg border border-gray-200 pointer-events-auto">
+          {navItems.map((item) => (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={(e) => handleClick(e, item)}
+              className={`relative px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                isActive(item)
+                  ? "text-white"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              {isActive(item) && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute inset-0 bg-gray-900 rounded-full"
+                  style={{ zIndex: -1 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{item.name}</span>
             </Link>
-          </div>
-          <div className="flex space-x-8">
-            {navItems.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={(e) => handleClick(e, item)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive(item)
-                    ? "text-blue-600 dark:text-blue-400"
-                    : "text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
-                }`}
-              >
-                {item.name}
-              </Link>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
     </motion.nav>

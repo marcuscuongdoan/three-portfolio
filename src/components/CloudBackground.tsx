@@ -199,7 +199,7 @@ const CloudBackground = forwardRef<CloudBackgroundRef, CloudBackgroundProps>(
     return (
       <div
         ref={cloudContainerRef}
-        className="fixed inset-0 bg-black overflow-hidden pointer-events-none"
+        className="fixed inset-0 bg-background overflow-hidden pointer-events-none"
         style={{
           zIndex: 0,
           opacity: containerOpacity,

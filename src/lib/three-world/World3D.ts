@@ -38,6 +38,7 @@ export class World3D {
   private sneakPoseAction?: THREE.AnimationAction;
   private sadPoseAction?: THREE.AnimationAction;
   private agreeAction?: THREE.AnimationAction;
+  private headShakeAction?: THREE.AnimationAction;
   private runAction?: THREE.AnimationAction;
   private walkAction?: THREE.AnimationAction;
   private onCameraAnimationComplete?: () => void;
@@ -196,6 +197,11 @@ export class World3D {
               anim.name.toLowerCase().includes('agree')
             );
             
+            // Find headShake animation
+            const headShakeAnimation = gltf.animations.find(anim => 
+              anim.name.toLowerCase().includes('headshake')
+            );
+            
             // Find idle animation
             const idleAnimation = gltf.animations.find(anim => 
               anim.name.toLowerCase().includes('idle')
@@ -228,6 +234,12 @@ export class World3D {
               this.agreeAction = this.mixer.clipAction(agreeAnimation);
               this.agreeAction.setLoop(THREE.LoopOnce, 1);
               this.agreeAction.clampWhenFinished = true;
+            }
+            
+            if (headShakeAnimation) {
+              this.headShakeAction = this.mixer.clipAction(headShakeAnimation);
+              this.headShakeAction.setLoop(THREE.LoopOnce, 1);
+              this.headShakeAction.clampWhenFinished = true;
             }
             
             if (idleAnimation) {
@@ -575,6 +587,9 @@ export class World3D {
         break;
       case 'agree':
         targetAction = this.agreeAction;
+        break;
+      case 'headshake':
+        targetAction = this.headShakeAction;
         break;
       case 'sneak':
         targetAction = this.sneakPoseAction;
