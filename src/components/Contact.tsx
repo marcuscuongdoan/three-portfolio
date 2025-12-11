@@ -36,7 +36,7 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
   useEffect(() => {
     if (isInView) {
       // Play run animation with default head tracking
-      playCharacterAnimation?.("run", true, 0.5);
+      playCharacterAnimation?.("cheering", true, 0.5);
 
       // Move camera a bit away
       adjustCamera?.({

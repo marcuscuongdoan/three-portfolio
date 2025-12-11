@@ -73,8 +73,8 @@ export default function Home({ playCharacterAnimation, adjustCamera }: HomeProps
   // Trigger idle animation and default camera position when Home section is in view
   useEffect(() => {
     if (isHomeInView) {
-      // Play idle animation with head tracking enabled
-      playCharacterAnimation?.('idle', true, 0.5, true);
+      // Play idle animation with no head tracking
+      playCharacterAnimation?.('idle', true, 0.5, false);
 
       // Set default camera position
       adjustCamera?.({

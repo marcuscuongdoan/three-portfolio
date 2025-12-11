@@ -18,6 +18,7 @@ export interface World3DCanvasRef {
     easing?: (amount: number) => number;
     onComplete?: () => void;
   }) => void;
+  isSpawnSequenceComplete: () => boolean;
 }
 
 const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({ 
@@ -28,9 +29,10 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<World3D | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLoading, setShowLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Expose playCharacterAnimation and adjustCamera functions to parent components
+  // Expose playCharacterAnimation, adjustCamera, and isSpawnSequenceComplete functions to parent components
   useImperativeHandle(ref, () => ({
     playCharacterAnimation: (animationName: string, loop: boolean = true, fadeTime: number = 0.3, lookAtCamera: boolean = true) => {
       if (worldRef.current) {
@@ -48,6 +50,12 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
       if (worldRef.current) {
         worldRef.current.adjustCamera(options);
       }
+    },
+    isSpawnSequenceComplete: () => {
+      if (worldRef.current) {
+        return worldRef.current.isSpawnSequenceComplete();
+      }
+      return false;
     }
   }));
 
@@ -68,17 +76,49 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
       try {
         setIsLoading(true);
         
-        // Load character
+        // Detect file format and load accordingly
+        const fileExtension = characterModelPath.split('.').pop()?.toLowerCase();
+        
         console.log('Loading character...');
-        await world.loadCharacter(characterModelPath);
+        
+        if (fileExtension === 'fbx') {
+          // FBX format - load with separate animation files
+          console.log('Detected FBX format, loading with separate animations');
+          
+          // Define animation paths
+          const animationPaths = {
+            'idle': '/models/idle.fbx',
+            'walking': '/models/walking.fbx',
+            'cheering': '/models/cheering.fbx',
+            'falling': '/models/falling.fbx',
+            'falling-impact': '/models/falling-impact.fbx',
+            'standing-up': '/models/standing-up.fbx'
+          };
+          
+          await world.loadCharacterFBX(characterModelPath, animationPaths);
+        } else {
+          // GLTF/GLB format - load with embedded animations
+          console.log('Detected GLTF/GLB format, loading with embedded animations');
+          await world.loadCharacter(characterModelPath);
+        }
         
         // Start the world
         world.start();
+        
+        // Start fade-out
         setIsLoading(false);
+        
+        // Remove loading screen after fade completes
+        setTimeout(() => {
+          setShowLoading(false);
+        }, 1000); // 1 second for fade transition
       } catch (err) {
         console.error('Failed to initialize world:', err);
         setError('Failed to load character model. Please check if the model exists at: ' + characterModelPath);
         setIsLoading(false);
+        setTimeout(() => {
+          setShowLoading(false);
+        }, 1000);
       }
     };
 
@@ -101,9 +141,16 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
         style={{ touchAction: 'none' }}
       />
       
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="text-white text-xl">Loading 3D World...</div>
+      {showLoading && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center bg-background"
+          style={{
+            opacity: isLoading ? 1 : 0,
+            transition: 'opacity 1s ease-out',
+            pointerEvents: isLoading ? 'auto' : 'none'
+          }}
+        >
+          <div className="text-foreground text-xl font-medium">Loading...</div>
         </div>
       )}
       

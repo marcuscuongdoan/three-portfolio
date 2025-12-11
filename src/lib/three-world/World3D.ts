@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { CameraController } from './CameraController';
 import { ClickToMoveController } from './ClickToMoveController';
 import { InputManager } from './InputManager';
@@ -41,9 +42,13 @@ export class World3D {
   private headShakeAction?: THREE.AnimationAction;
   private runAction?: THREE.AnimationAction;
   private walkAction?: THREE.AnimationAction;
+  private fallingAction?: THREE.AnimationAction;
+  private fallingImpactAction?: THREE.AnimationAction;
+  private standingUpAction?: THREE.AnimationAction;
   private onCameraAnimationComplete?: () => void;
   private tweenGroup: TWEEN.Group;
   private currentAnimationAction?: THREE.AnimationAction;
+  private spawnSequenceComplete: boolean = false;
 
   // Character highlighting lights
   private characterSpotlight?: THREE.SpotLight;
@@ -118,12 +123,12 @@ export class World3D {
   }
 
   private setupLights() {
-    // Bright ambient light for well-lit, natural look
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    // Balanced ambient light for natural visibility
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
     this.scene.add(ambientLight);
 
-    // Bright, soft directional light (sun)
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    // Strong directional light for definition and depth
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.2);
     directionalLight.position.set(50, 50, 50);
     directionalLight.castShadow = true;
     directionalLight.shadow.camera.left = -50;
@@ -136,8 +141,8 @@ export class World3D {
     directionalLight.shadow.mapSize.height = 2048;
     this.scene.add(directionalLight);
 
-    // Very soft spotlight for subtle character accent
-    this.characterSpotlight = new THREE.SpotLight(0xffffff, 2); // Pure white, very low intensity
+    // Moderate spotlight for character accent without washing out
+    this.characterSpotlight = new THREE.SpotLight(0xffffff, 5);
     this.characterSpotlight.position.set(0, 6, 3);
     this.characterSpotlight.angle = Math.PI / 3; // 60 degrees - very wide cone
     this.characterSpotlight.penumbra = 0.95; // Almost completely diffuse edge
@@ -147,8 +152,8 @@ export class World3D {
     this.scene.add(this.characterSpotlight);
     this.scene.add(this.characterSpotlight.target);
 
-    // Very subtle blue accent from behind
-    this.characterRimLight = new THREE.PointLight(0xaabbff, 1.5, 12); // Very soft pale blue, minimal intensity
+    // Subtle rim light for depth without overpowering
+    this.characterRimLight = new THREE.PointLight(0xaabbff, 4, 12);
     this.characterRimLight.position.set(0, 2, -2);
     this.scene.add(this.characterRimLight);
   }
@@ -346,6 +351,215 @@ export class World3D {
           }, 100);
 
           resolve();
+        },
+        (progress: ProgressEvent) => {
+          console.log('Loading character:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
+        },
+        (error: ErrorEvent) => {
+          console.error('Error loading character:', error);
+          reject(error);
+        }
+      );
+    });
+  }
+
+  /**
+   * Load FBX character with separate animation files
+   * @param modelPath - Path to the base character FBX model
+   * @param animationPaths - Object mapping animation names to their file paths
+   */
+  public async loadCharacterFBX(
+    modelPath: string,
+    animationPaths: Record<string, string>
+  ): Promise<void> {
+    const loader = new FBXLoader();
+    
+    return new Promise((resolve, reject) => {
+      // Load base character model
+      loader.load(
+        modelPath,
+        async (fbxModel: THREE.Group) => {
+          this.characterModel = fbxModel;
+          this.characterModel.traverse((child: THREE.Object3D) => {
+            if ((child as THREE.Mesh).isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              
+              // Fix FBX material lighting issues
+              const mesh = child as THREE.Mesh;
+              if (mesh.material) {
+                if (Array.isArray(mesh.material)) {
+                  mesh.material.forEach(mat => {
+                    if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhongMaterial) {
+                      mat.needsUpdate = true;
+                      // Subtle emission for definition without washing out
+                      mat.emissive = new THREE.Color(0x202020); // Subtle gray emission
+                      mat.emissiveIntensity = 0.15; // Low intensity for solid look
+                    }
+                  });
+                } else {
+                  const mat = mesh.material;
+                  if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhongMaterial) {
+                    mat.needsUpdate = true;
+                    // Subtle emission for definition without washing out
+                    mat.emissive = new THREE.Color(0x202020); // Subtle gray emission
+                    mat.emissiveIntensity = 0.15; // Low intensity for solid look
+                  }
+                }
+              }
+            }
+          });
+
+          // Scale character if needed
+          this.characterModel.scale.set(0.01, 0.01, 0.01); // FBX models often need scaling
+          
+          // Position character at origin
+          this.characterModel.position.set(0, 0, 0);
+          
+          // Rotate character to look slightly to the right (body angle)
+          this.characterModel.rotation.y = Math.PI * 0.15; // About 27 degrees to the right
+
+          this.scene.add(this.characterModel);
+
+          // Create default look-at target in front of character
+          this.defaultLookAtTarget = new THREE.Object3D();
+          this.defaultLookAtTarget.position.set(0, 2.2, 2); // In front and slightly above head height
+          this.scene.add(this.defaultLookAtTarget);
+
+          // Find the head bone to make it look at camera
+          this.findHeadBone(this.characterModel);
+
+          // Initialize animation mixer
+          this.mixer = new THREE.AnimationMixer(this.characterModel);
+
+          // Load all animation files
+          console.log('Loading animations...');
+          const animationLoadPromises: Promise<void>[] = [];
+
+          for (const [animName, animPath] of Object.entries(animationPaths)) {
+            const animPromise = new Promise<void>((resolveAnim, rejectAnim) => {
+              loader.load(
+                animPath,
+                (animFbx: THREE.Group) => {
+                  if (animFbx.animations && animFbx.animations.length > 0) {
+                    const clip = animFbx.animations[0]; // Get first animation from file
+                    clip.name = animName; // Rename to our mapping name
+                    
+                    // Create animation action
+                    const action = this.mixer!.clipAction(clip);
+                    
+                    // Map to appropriate action variable
+                    switch (animName.toLowerCase()) {
+                      case 'idle':
+                        this.idleAction = action;
+                        action.setLoop(THREE.LoopRepeat, Infinity);
+                        console.log('Loaded idle animation');
+                        break;
+                      case 'walk':
+                      case 'walking':
+                        this.walkAction = action;
+                        action.setLoop(THREE.LoopRepeat, Infinity);
+                        console.log('Loaded walking animation');
+                        break;
+                      case 'run':
+                        this.runAction = action;
+                        action.setLoop(THREE.LoopRepeat, Infinity);
+                        console.log('Loaded run animation');
+                        break;
+                      case 'cheering':
+                      case 'agree':
+                        this.agreeAction = action;
+                        action.setLoop(THREE.LoopOnce, 1);
+                        action.clampWhenFinished = true;
+                        console.log('Loaded cheering animation');
+                        break;
+                      case 'falling':
+                        this.fallingAction = action;
+                        action.setLoop(THREE.LoopRepeat, Infinity);
+                        console.log('Loaded falling animation');
+                        break;
+                      case 'falling-impact':
+                      case 'impact':
+                        this.fallingImpactAction = action;
+                        action.setLoop(THREE.LoopOnce, 1);
+                        action.clampWhenFinished = true;
+                        console.log('Loaded falling-impact animation');
+                        break;
+                      case 'standing-up':
+                      case 'standup':
+                        this.standingUpAction = action;
+                        action.setLoop(THREE.LoopOnce, 1);
+                        action.clampWhenFinished = true;
+                        console.log('Loaded standing-up animation');
+                        break;
+                    }
+                    
+                    resolveAnim();
+                  } else {
+                    console.warn(`No animations found in ${animPath}`);
+                    rejectAnim(new Error(`No animations in ${animPath}`));
+                  }
+                },
+                undefined,
+                (error) => {
+                  console.error(`Error loading animation ${animName}:`, error);
+                  rejectAnim(error);
+                }
+              );
+            });
+            
+            animationLoadPromises.push(animPromise);
+          }
+
+          try {
+            // Wait for all animations to load
+            await Promise.all(animationLoadPromises);
+            console.log('All animations loaded successfully');
+
+            // Start with falling animation sequence
+            this.playFallingSequence();
+
+            // Start camera far away for zoom animation
+            const startPosition = { x: 0, y: 10, z: 15 };
+            const endPosition = { x: 0, y: 1.7, z: 1 };
+            const lookAtStart = { x: 0, y: 2, z: 0 };
+            const lookAtEnd = { x: 0.5, y: 1.5, z: 0 };
+            
+            this.camera.position.set(startPosition.x, startPosition.y, startPosition.z);
+            this.camera.lookAt(lookAtStart.x, lookAtStart.y, lookAtStart.z);
+            
+            // Delay the tween start slightly to ensure everything is initialized
+            setTimeout(() => {
+              // Animate camera zoom using TWEEN with specific group
+              const cameraPositionTween = new TWEEN.Tween(this.camera.position, this.tweenGroup)
+                .to(endPosition, 2000) // 2 seconds
+                .easing(TWEEN.Easing.Quadratic.Out);
+              
+              const lookAtTarget = { ...lookAtStart };
+              const lookAtTween = new TWEEN.Tween(lookAtTarget, this.tweenGroup)
+                .to(lookAtEnd, 2000)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .onUpdate(() => {
+                  this.camera.lookAt(lookAtTarget.x, lookAtTarget.y, lookAtTarget.z);
+                })
+                .onComplete(() => {
+                  // Camera animation complete - keep playing idle
+                  console.log('Camera zoom animation complete');
+                  
+                  if (this.onCameraAnimationComplete) {
+                    this.onCameraAnimationComplete();
+                  }
+                });
+              
+              cameraPositionTween.start();
+              lookAtTween.start();
+            }, 100);
+
+            resolve();
+          } catch (error) {
+            console.error('Error loading animations:', error);
+            reject(error);
+          }
         },
         (progress: ProgressEvent) => {
           console.log('Loading character:', (progress.loaded / progress.total * 100).toFixed(2) + '%');
@@ -679,12 +893,13 @@ export class World3D {
         targetAction = this.runAction;
         break;
       case 'walk':
+      case 'walking':
         targetAction = this.walkAction;
         break;
       case 'idle':
         targetAction = this.idleAction;
         break;
-      case 'agree':
+      case 'cheering':
         targetAction = this.agreeAction;
         break;
       case 'headshake':
@@ -814,6 +1029,130 @@ export class World3D {
     this.idleAction.play();
     
     console.log('Playing idle animation');
+  }
+
+  /**
+   * Play the falling animation sequence: falling → impact → standing-up → idle
+   */
+  private playFallingSequence(): void {
+    if (!this.mixer) return;
+
+    // Step 1: Play falling animation for a short duration
+    if (this.fallingAction) {
+      this.fallingAction.reset();
+      this.fallingAction.play();
+      this.currentAnimationAction = this.fallingAction;
+      console.log('Step 1: Playing falling animation');
+
+      // After a second, transition to impact
+      setTimeout(() => {
+        this.playFallingImpact();
+      }, 1000);
+    } else {
+      // If falling not available, skip to idle
+      console.warn('Falling animation not available, skipping to idle');
+      if (this.idleAction) {
+        this.idleAction.play();
+        this.currentAnimationAction = this.idleAction;
+      }
+    }
+  }
+
+  /**
+   * Play the falling impact animation, then standing-up
+   */
+  private playFallingImpact(): void {
+    if (!this.mixer || !this.fallingImpactAction) {
+      this.playStandingUp();
+      return;
+    }
+
+    // Fade out falling
+    if (this.fallingAction) {
+      this.fallingAction.fadeOut(0.2);
+    }
+
+    // Play impact animation
+    this.fallingImpactAction.reset();
+    this.fallingImpactAction.fadeIn(0.2);
+    this.fallingImpactAction.play();
+    this.currentAnimationAction = this.fallingImpactAction;
+    console.log('Step 2: Playing falling-impact animation');
+
+    // Listen for impact animation completion
+    const onImpactComplete = (event: any) => {
+      if (event.action === this.fallingImpactAction) {
+        this.mixer?.removeEventListener('finished', onImpactComplete);
+        this.playStandingUp();
+      }
+    };
+
+    this.mixer.addEventListener('finished', onImpactComplete);
+  }
+
+  /**
+   * Play the standing-up animation, then idle
+   */
+  private playStandingUp(): void {
+    if (!this.mixer || !this.standingUpAction) {
+      this.playIdleAfterSequence();
+      return;
+    }
+
+    // Fade out previous animation
+    if (this.fallingImpactAction) {
+      this.fallingImpactAction.fadeOut(0.3);
+    }
+
+    // Play standing-up animation with faster speed
+    this.standingUpAction.reset();
+    this.standingUpAction.setEffectiveTimeScale(2.5); // 2.5x speed
+    this.standingUpAction.fadeIn(0.3);
+    this.standingUpAction.play();
+    this.currentAnimationAction = this.standingUpAction;
+    console.log('Step 3: Playing standing-up animation (2.5x speed)');
+
+    // Listen for standing-up animation completion
+    const onStandUpComplete = (event: any) => {
+      if (event.action === this.standingUpAction) {
+        this.mixer?.removeEventListener('finished', onStandUpComplete);
+        // Reset time scale back to normal
+        this.standingUpAction!.setEffectiveTimeScale(1.0);
+        this.playIdleAfterSequence();
+      }
+    };
+
+    this.mixer.addEventListener('finished', onStandUpComplete);
+  }
+
+  /**
+   * Play idle animation after the falling sequence completes
+   */
+  private playIdleAfterSequence(): void {
+    if (!this.mixer || !this.idleAction) return;
+
+    // Fade out previous animation
+    if (this.standingUpAction) {
+      this.standingUpAction.fadeOut(0.5);
+    }
+
+    // Play idle animation
+    this.idleAction.reset();
+    this.idleAction.fadeIn(0.5);
+    this.idleAction.play();
+    this.currentAnimationAction = this.idleAction;
+    
+    // Mark spawn sequence as complete
+    this.spawnSequenceComplete = true;
+    console.log('Step 4: Playing idle animation - sequence complete!');
+  }
+
+  /**
+   * Check if the spawn animation sequence is complete
+   * @returns true if spawn sequence is complete and character is ready for interaction
+   */
+  public isSpawnSequenceComplete(): boolean {
+    return this.spawnSequenceComplete;
   }
 
   /**

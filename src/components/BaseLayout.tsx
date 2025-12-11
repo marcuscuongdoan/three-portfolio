@@ -20,12 +20,12 @@ export default function BaseLayout({
   showNavbar = true,
   cloudOpacity = 0.3,
   maxClouds = 50,
-  characterModelPath = '/models/bot.glb',
-  enableCloudControls = true,
+  characterModelPath = '/models/bot.fbx',
   className = "",
 }: BaseLayoutProps) {
   const [showContent, setShowContent] = useState(false);
   const [showNav, setShowNav] = useState(false);
+  const [spawnSequenceComplete, setSpawnSequenceComplete] = useState(false);
   const cloudRef = useRef<CloudBackgroundRef>(null);
   const world3DRef = useRef<World3DCanvasRef>(null);
 
@@ -50,39 +50,30 @@ export default function BaseLayout({
     }
   };
 
-  useEffect(() => {
-    // Fade in all content after 0.5 seconds
-    setTimeout(() => {
-      setShowContent(true);
-      setShowNav(true);
-    }, 500);
-  }, []);
 
   useEffect(() => {
-    if (!enableCloudControls) return;
-
-    // Keyboard controls for cloud management
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === '+' || e.key === '=') {
-        cloudRef.current?.moreCloud();
-      } else if (e.key === '-' || e.key === '_') {
-        cloudRef.current?.lessCloud();
-      } else if (e.key === 'ArrowUp') {
-        cloudRef.current?.increaseSpeed();
-      } else if (e.key === 'ArrowDown') {
-        cloudRef.current?.decreaseSpeed();
+    // Poll for spawn sequence completion
+    const checkSpawnSequence = () => {
+      if (world3DRef.current?.isSpawnSequenceComplete()) {
+        setSpawnSequenceComplete(true);
+        // Fade in content after sequence completes
+        setTimeout(() => {
+          setShowContent(true);
+          setShowNav(true);
+        }, 500);
+      } else {
+        // Check again in 100ms
+        setTimeout(checkSpawnSequence, 100);
       }
     };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, [enableCloudControls]);
+    
+    // Start checking after a brief delay to ensure world is initialized
+    setTimeout(checkSpawnSequence, 500);
+  }, []);
 
   return (
     <main className="w-screen h-screen overflow-hidden bg-background relative">
-      {/* Cloud Background - Fixed */}
+      {/* Cloud Background - Fixed (always visible) */}
       <div className="fixed inset-0 z-0">
         <CloudBackground 
           ref={cloudRef} 
@@ -91,41 +82,48 @@ export default function BaseLayout({
         />
       </div>
       
-      {/* Main Content with fade-in */}
-      <div
-        style={{
-          opacity: showContent ? 1 : 0,
-          transition: 'opacity 1s ease-in',
-        }}
-        className="relative z-10 h-full"
-      >
-        {/* Navbar - Fixed */}
-        {showNavbar && (
-          <Navbar show={showNav} />
-        )}
-        
-        {/* 3D Canvas - Fixed */}
-        <div className="fixed inset-0 z-30 pointer-events-none opacity-90">
-          <World3DCanvas 
-            ref={world3DRef}
-            className="w-full h-full" 
-            characterModelPath={characterModelPath}
-          />
-        </div>
-        
-        {/* Children Content - Scrollable with Snap */}
-        {children && (
-          <div className={`relative z-20 h-full overflow-y-auto overflow-x-hidden ${className}`}>
-            <div className="pointer-events-auto">
-              {/* Clone children and inject playCharacterAnimation and adjustCamera functions */}
-              {isValidElement(children) 
-                ? cloneElement(children, { playCharacterAnimation, adjustCamera } as any)
-                : children
-              }
-            </div>
-          </div>
-        )}
+      {/* 3D Canvas - Fixed (always visible) */}
+      <div className="fixed inset-0 z-30 pointer-events-none opacity-90">
+        <World3DCanvas 
+          ref={world3DRef}
+          className="w-full h-full" 
+          characterModelPath={characterModelPath}
+        />
       </div>
+      
+      {/* Navbar - Fixed (hidden until spawn completes) */}
+      {showNavbar && (
+        <div
+          style={{
+            opacity: showContent && spawnSequenceComplete ? 1 : 0,
+            pointerEvents: spawnSequenceComplete ? 'auto' : 'none',
+            transition: 'opacity 1s ease-in',
+          }}
+          className="relative z-40"
+        >
+          <Navbar show={showNav && spawnSequenceComplete} />
+        </div>
+      )}
+      
+      {/* Children Content - Scrollable with Snap (hidden until spawn completes) */}
+      {children && (
+        <div 
+          className={`relative z-10 h-full ${spawnSequenceComplete ? 'overflow-y-auto' : 'overflow-hidden'} overflow-x-hidden ${className}`}
+          style={{
+            opacity: spawnSequenceComplete ? 1 : 0,
+            pointerEvents: spawnSequenceComplete ? 'auto' : 'none',
+            transition: 'opacity 0.5s ease-in'
+          }}
+        >
+          <div className="pointer-events-auto">
+            {/* Clone children and inject playCharacterAnimation and adjustCamera functions */}
+            {isValidElement(children) 
+              ? cloneElement(children, { playCharacterAnimation, adjustCamera } as any)
+              : children
+            }
+          </div>
+        </div>
+      )}
     </main>
   );
 
