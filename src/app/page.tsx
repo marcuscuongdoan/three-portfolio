@@ -2,7 +2,7 @@
 
 import BaseLayout from "@/components/BaseLayout";
 import Home from "@/components/Home";
-import About from "@/components/About";
+import Projects from "@/components/Projects";
 import Contact from "@/components/Contact";
 
 interface HomeContentProps {
@@ -22,8 +22,8 @@ function HomeContent({ playCharacterAnimation, adjustCamera }: HomeContentProps)
       {/* Home Section */}
       <Home playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
 
-      {/* About Section */}
-      <About playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
+      {/* Projects Section */}
+      <Projects playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
 
       {/* Contact Section */}
       <Contact playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />

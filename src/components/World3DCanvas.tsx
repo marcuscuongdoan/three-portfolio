@@ -92,7 +92,8 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
             'cheering': '/models/cheering.fbx',
             'falling': '/models/falling.fbx',
             'falling-impact': '/models/falling-impact.fbx',
-            'standing-up': '/models/standing-up.fbx'
+            'standing-up': '/models/standing-up.fbx',
+            'entering-code': '/models/entering-code.fbx'
           };
           
           await world.loadCharacterFBX(characterModelPath, animationPaths);

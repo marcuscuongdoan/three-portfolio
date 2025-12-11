@@ -6,7 +6,7 @@ import { useRef, useEffect, useState } from "react";
 import Image from "next/image";
 import SectionLayout from "@/components/SectionLayout";
 
-interface AboutProps {
+interface ProjectsProps {
   playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
   adjustCamera?: (options: {
     position?: { x: number; y: number; z: number };
@@ -61,7 +61,7 @@ const projects = [
 where we can be able to:
 Assist the young generations on 
 alleviate mental health stigma
-Foster individuals’ self-expression 
+Foster individuals' self-expression 
 and self-awareness towards mental 
 well-being`,
     url: "https://mental-gym.vercel.app",
@@ -69,11 +69,11 @@ well-being`,
   },
 ];
 
-export default function About({ playCharacterAnimation, adjustCamera }: AboutProps) {
+export default function Projects({ playCharacterAnimation, adjustCamera }: ProjectsProps) {
   const containerRef = useRef(null);
   const isInView = useInView(containerRef, { once: false, amount: 0.3 });
 
-  // Trigger walk animation and adjust camera when About section is in view
+  // Trigger walk animation and adjust camera when Projects section is in view
   useEffect(() => {
     if (isInView) {
       // Play walk animation with default head tracking
@@ -90,19 +90,19 @@ export default function About({ playCharacterAnimation, adjustCamera }: AboutPro
 
   return (
     <SectionLayout
-      id="about"
+      id="projects"
       ref={containerRef}
       className="flex-col"
     >
       {/* Section Title */}
       <motion.div
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="mb-6 text-center z-10 flex-shrink-0"
+        className="mb-12 text-center z-10 flex-shrink-0"
       >
-        <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
+        <h2 className="text-5xl md:text-6xl font-bold text-brown-900 mb-4 tracking-tight">
           My Projects
         </h2>
-        <p className="text-base text-brown-700 max-w-2xl mx-auto">
+        <p className="text-lg md:text-xl text-brown-600 max-w-2xl font-medium">
           Explore my latest work and creative solutions
         </p>
       </motion.div>

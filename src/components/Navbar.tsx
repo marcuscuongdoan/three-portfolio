@@ -15,7 +15,7 @@ export default function Navbar({ show = false }: NavbarProps) {
 
   const navItems = [
     { name: "Home", href: "#home", isAnchor: true },
-    { name: "About", href: "#about", isAnchor: true },
+    { name: "Projects", href: "#projects", isAnchor: true },
     { name: "Contact", href: "#contact", isAnchor: true },
   ];
 
@@ -39,7 +39,7 @@ export default function Navbar({ show = false }: NavbarProps) {
     const observer = new IntersectionObserver(observerCallback, observerOptions);
 
     // Observe sections
-    const sections = ["home", "about", "contact"];
+    const sections = ["home", "projects", "contact"];
     sections.forEach((sectionId) => {
       const element = document.getElementById(sectionId);
       if (element) {

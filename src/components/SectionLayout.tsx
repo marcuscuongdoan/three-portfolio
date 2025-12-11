@@ -12,7 +12,11 @@ const SectionLayout = forwardRef<HTMLElement, SectionLayoutProps>(
       <section
         id={id}
         ref={ref}
-        className={`w-full h-screen flex items-center justify-center overflow-hidden relative snap-start snap-always ${className}`}
+        className={`w-full h-screen flex items-center justify-center overflow-hidden relative snap-start ${className}`}
+        style={{ 
+          scrollSnapStop: 'always',
+          scrollSnapAlign: 'start'
+        }}
       >
         {children}
       </section>

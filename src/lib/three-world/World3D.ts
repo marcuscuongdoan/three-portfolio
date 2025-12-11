@@ -45,10 +45,12 @@ export class World3D {
   private fallingAction?: THREE.AnimationAction;
   private fallingImpactAction?: THREE.AnimationAction;
   private standingUpAction?: THREE.AnimationAction;
+  private enteringCodeAction?: THREE.AnimationAction;
   private onCameraAnimationComplete?: () => void;
   private tweenGroup: TWEEN.Group;
   private currentAnimationAction?: THREE.AnimationAction;
   private spawnSequenceComplete: boolean = false;
+  private activeCameraTweens: TWEEN.Tween<any>[] = [];
 
   // Character highlighting lights
   private characterSpotlight?: THREE.SpotLight;
@@ -316,7 +318,7 @@ export class World3D {
 
           // Start camera far away for zoom animation
           const startPosition = { x: 0, y: 10, z: 15 };
-          const endPosition = { x: 0, y: 1.7, z: 1 }; // Include right movement in end position
+          const endPosition = { x: 0, y: 1.7, z: 1 };
           const lookAtStart = { x: 0, y: 2, z: 0 };
           const lookAtEnd = { x: 0.5, y: 1.5, z: 0 };
           
@@ -492,6 +494,12 @@ export class World3D {
                         action.clampWhenFinished = true;
                         console.log('Loaded standing-up animation');
                         break;
+                      case 'entering-code':
+                      case 'enteringcode':
+                        this.enteringCodeAction = action;
+                        action.setLoop(THREE.LoopRepeat, Infinity);
+                        console.log('Loaded entering-code animation');
+                        break;
                     }
                     
                     resolveAnim();
@@ -520,8 +528,8 @@ export class World3D {
             this.playFallingSequence();
 
             // Start camera far away for zoom animation
-            const startPosition = { x: 0, y: 10, z: 15 };
-            const endPosition = { x: 0, y: 1.7, z: 1 };
+            const startPosition = { x: 0, y: -10, z: 1 };
+            const endPosition = { x: 0, y: 1.25, z: 1 };
             const lookAtStart = { x: 0, y: 2, z: 0 };
             const lookAtEnd = { x: 0.5, y: 1.5, z: 0 };
             
@@ -532,12 +540,12 @@ export class World3D {
             setTimeout(() => {
               // Animate camera zoom using TWEEN with specific group
               const cameraPositionTween = new TWEEN.Tween(this.camera.position, this.tweenGroup)
-                .to(endPosition, 2000) // 2 seconds
+                .to(endPosition, 1500)
                 .easing(TWEEN.Easing.Quadratic.Out);
               
               const lookAtTarget = { ...lookAtStart };
               const lookAtTween = new TWEEN.Tween(lookAtTarget, this.tweenGroup)
-                .to(lookAtEnd, 2000)
+                .to(lookAtEnd, 1500)
                 .easing(TWEEN.Easing.Quadratic.Out)
                 .onUpdate(() => {
                   this.camera.lookAt(lookAtTarget.x, lookAtTarget.y, lookAtTarget.z);
@@ -785,6 +793,12 @@ export class World3D {
     easing?: (amount: number) => number;
     onComplete?: () => void;
   }): void {
+    // Don't allow camera adjustments until the initial spawn sequence is complete
+    if (!this.spawnSequenceComplete) {
+      console.log('Camera adjustment blocked - waiting for spawn sequence to complete');
+      return;
+    }
+
     const {
       position,
       lookAt,
@@ -793,8 +807,9 @@ export class World3D {
       onComplete
     } = options;
 
-    // Stop any existing tweens on the camera
-    this.tweenGroup.removeAll();
+    // Stop any existing camera tweens
+    this.activeCameraTweens.forEach(tween => tween.stop());
+    this.activeCameraTweens = [];
 
     if (position) {
       // Animate camera position
@@ -910,6 +925,12 @@ export class World3D {
         break;
       case 'sad':
         targetAction = this.sadPoseAction;
+        break;
+      case 'entering-code':
+      case 'enteringcode':
+      case 'typing':
+      case 'coding':
+        targetAction = this.enteringCodeAction;
         break;
       default:
         console.warn(`Animation '${animationName}' not found`);
@@ -1040,14 +1061,18 @@ export class World3D {
     // Step 1: Play falling animation for a short duration
     if (this.fallingAction) {
       this.fallingAction.reset();
+      this.fallingAction.fadeIn(0.3);
       this.fallingAction.play();
       this.currentAnimationAction = this.fallingAction;
       console.log('Step 1: Playing falling animation');
 
-      // After a second, transition to impact
+      // Start fading out before transition (800ms play + 200ms fade = 1000ms)
       setTimeout(() => {
+        if (this.fallingAction) {
+          this.fallingAction.fadeOut(0.4);
         this.playFallingImpact();
-      }, 1000);
+        }
+      }, 800);
     } else {
       // If falling not available, skip to idle
       console.warn('Falling animation not available, skipping to idle');
@@ -1067,14 +1092,9 @@ export class World3D {
       return;
     }
 
-    // Fade out falling
-    if (this.fallingAction) {
-      this.fallingAction.fadeOut(0.2);
-    }
-
-    // Play impact animation
+    // Play impact animation (falling should already be fading out)
     this.fallingImpactAction.reset();
-    this.fallingImpactAction.fadeIn(0.2);
+    this.fallingImpactAction.fadeIn(0.4);
     this.fallingImpactAction.play();
     this.currentAnimationAction = this.fallingImpactAction;
     console.log('Step 2: Playing falling-impact animation');
