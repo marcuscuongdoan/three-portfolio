@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, useInView } from "framer-motion";
+import SectionLayout from "@/components/SectionLayout";
 
 interface ContactProps {
   playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number) => boolean;
@@ -105,10 +106,10 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
   };
 
   return (
-    <div
+    <SectionLayout
       id="contact"
       ref={containerRef}
-      className="w-full min-h-screen max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-start snap-start snap-always"
+      className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 justify-start"
     >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -200,6 +201,6 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
           </button>
         </form>
       </motion.div>
-    </div>
+    </SectionLayout>
   );
 }

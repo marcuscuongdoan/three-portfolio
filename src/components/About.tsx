@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 import Image from "next/image";
+import SectionLayout from "@/components/SectionLayout";
 
 interface AboutProps {
   playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number) => boolean;
@@ -88,20 +89,20 @@ export default function About({ playCharacterAnimation, adjustCamera }: AboutPro
   }, [isInView, playCharacterAnimation, adjustCamera]);
 
   return (
-    <section
+    <SectionLayout
       id="about"
       ref={containerRef}
-      className="min-h-screen w-[100vw] h-[100vh] flex flex-col items-center justify-center py-20 overflow-x-hidden relative snap-start snap-always"
+      className="flex-col"
     >
       {/* Section Title */}
       <motion.div
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="mb-16 text-center z-10"
+        className="mb-6 text-center z-10 flex-shrink-0"
       >
-        <h2 className="text-5xl md:text-6xl font-bold text-foreground mb-4">
+        <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
           My Projects
         </h2>
-        <p className="text-lg text-brown-700 max-w-2xl mx-auto">
+        <p className="text-base text-brown-700 max-w-2xl mx-auto">
           Explore my latest work and creative solutions
         </p>
       </motion.div>
@@ -124,7 +125,7 @@ export default function About({ playCharacterAnimation, adjustCamera }: AboutPro
           ))}
         </div>
       </div>}
-    </section>
+    </SectionLayout>
   );
 }
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import BaseLayout from "@/components/BaseLayout";
 import About from "@/components/About";
 import Contact from "@/components/Contact";
+import SectionLayout from "@/components/SectionLayout";
 import { motion, useInView } from "framer-motion";
 
 interface HomeContentProps {
@@ -47,10 +48,10 @@ function HomeContent({ playCharacterAnimation, adjustCamera }: HomeContentProps)
   return (
     <>
       {/* Hero Section */}
-      <div 
+      <SectionLayout 
         id="home" 
         ref={homeRef}
-        className="w-full h-screen max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-end snap-start snap-always"
+        className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 justify-end"
       >
         <motion.div
           initial={{ opacity: 0, filter: "blur(10px)" }}
@@ -65,7 +66,7 @@ function HomeContent({ playCharacterAnimation, adjustCamera }: HomeContentProps)
           <h1 className="text-7xl font-bold mb-4">Portfolio</h1>
           <p className="text-sm text-right">by Marcus - Cuong Doan</p>
         </motion.div>
-      </div>
+      </SectionLayout>
 
       {/* About Section */}
       <About playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
