@@ -14,11 +14,11 @@ export const metadata: Metadata = {
   keywords: ["Marcus", "Portfolio", "Three.js", "3D", "Web Development", "Next.js", "React", "Interactive"],
   authors: [{ name: "Marcus Cuong Doan" }],
   creator: "Marcus Cuong Doan",
-  metadataBase: new URL('https://marcus-three-portfolio.com'), // Update this with your actual domain
+  metadataBase: new URL('https://marcus-three-portfolio.vercel.app'), // Update this with your actual domain
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://marcus-three-portfolio.com", // Update this with your actual domain
+    url: "https://marcus-three-portfolio.vercel.app", // Update this with your actual domain
     title: "Marcus Portfolio - 3D Character Showcase",
     description: "Explore my interactive 3D portfolio featuring Three.js character animations and web development projects. Built with Next.js and modern web technologies.",
     siteName: "Marcus Portfolio",
