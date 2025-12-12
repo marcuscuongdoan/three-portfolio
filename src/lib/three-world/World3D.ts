@@ -88,15 +88,21 @@ export class World3D {
     );
     this.camera.position.set(0, 5, 10);
 
+    // Detect if mobile for performance optimizations
+    const isMobile = window.innerWidth < 640;
+    
     // Setup renderer with alpha for transparency
     this.renderer = new THREE.WebGLRenderer({ 
-      antialias: true,
-      alpha: true // Enable transparency
+      antialias: !isMobile, // Disable antialiasing on mobile for performance
+      alpha: true, // Enable transparency
+      powerPreference: isMobile ? 'low-power' : 'high-performance'
     });
     this.renderer.setClearColor(0x000000, 0); // Transparent clear color
     this.renderer.setSize(container.clientWidth, container.clientHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.shadowMap.enabled = true;
+    // Use lower pixel ratio on mobile for better performance
+    this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
+    // Disable shadows on mobile for performance
+    this.renderer.shadowMap.enabled = !isMobile;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 

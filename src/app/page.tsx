@@ -4,6 +4,7 @@ import BaseLayout from "@/components/BaseLayout";
 import Home from "@/components/Home";
 import Projects from "@/components/Projects";
 import Contact from "@/components/Contact";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface HomeContentProps {
   playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
@@ -32,13 +33,15 @@ function HomeContent({ playCharacterAnimation, adjustCamera }: HomeContentProps)
 }
 
 export default function Page() {
+  const isMobile = useIsMobile(640);
+  
   return (
     <BaseLayout
       showNavbar={true}
       cloudOpacity={0.3}
       maxClouds={50}
       enableCloudControls={true}
-      className="snap-y snap-mandatory"
+      className={isMobile ? "" : "snap-y snap-mandatory"}
     >
       <HomeContent />
     </BaseLayout>

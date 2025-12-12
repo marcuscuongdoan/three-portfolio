@@ -79,18 +79,19 @@ export default function Navbar({ show = false }: NavbarProps) {
       transition={{ duration: 0.6, ease: "easeOut" }}
       className="fixed top-0 left-0 z-50 w-full pointer-events-none flex justify-center"
     >
-      <div className="pt-6">
-        <div className="relative inline-flex items-center bg-white/90 backdrop-blur-md rounded-full p-1.5 shadow-lg border border-gray-200 pointer-events-auto">
+      <div className="pt-4 sm:pt-6 px-4 sm:px-0">
+        <div className="relative inline-flex items-center bg-white/90 backdrop-blur-md rounded-full p-1 sm:p-1.5 shadow-lg border border-gray-200 pointer-events-auto">
           {navItems.map((item) => (
             <Link
               key={item.name}
               href={item.href}
               onClick={(e) => handleClick(e, item)}
-              className={`relative px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+              className={`relative px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
                 isActive(item)
                   ? "text-white"
                   : "text-gray-600 hover:text-gray-900"
               }`}
+              style={{ minHeight: '44px', minWidth: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               {isActive(item) && (
                 <motion.div

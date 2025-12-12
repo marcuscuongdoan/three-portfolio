@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, ReactNode, cloneElement, isValidElement } 
 import World3DCanvas, { World3DCanvasRef } from "@/components/World3DCanvas";
 import Navbar from "@/components/Navbar";
 import CloudBackground, { CloudBackgroundRef } from "@/components/CloudBackground";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface BaseLayoutProps {
   children?: ReactNode;
@@ -28,6 +29,12 @@ export default function BaseLayout({
   const [spawnSequenceComplete, setSpawnSequenceComplete] = useState(false);
   const cloudRef = useRef<CloudBackgroundRef>(null);
   const world3DRef = useRef<World3DCanvasRef>(null);
+  
+  // Detect mobile for performance optimizations
+  const isMobile = useIsMobile(640);
+  
+  // Reduce cloud count on mobile
+  const effectiveMaxClouds = isMobile ? Math.min(maxClouds, 10) : maxClouds;
 
   // Function to play character animation
   const playCharacterAnimation = (animationName: string, loop: boolean = true, fadeTime: number = 0.3, lookAtCamera: boolean = true) => {
@@ -78,16 +85,17 @@ export default function BaseLayout({
         <CloudBackground 
           ref={cloudRef} 
           opacity={cloudOpacity} 
-          maxClouds={maxClouds}
+          maxClouds={effectiveMaxClouds}
         />
       </div>
       
-      {/* 3D Canvas - Fixed (always visible) */}
-      <div className="fixed inset-0 z-30 pointer-events-none opacity-90">
+      {/* 3D Canvas - Fixed (always visible) - More transparent on mobile */}
+      <div className={`fixed inset-0 z-30 pointer-events-none ${isMobile ? 'opacity-50' : 'opacity-90'}`}>
         <World3DCanvas 
           ref={world3DRef}
           className="w-full h-full" 
           characterModelPath={characterModelPath}
+          isMobile={isMobile}
         />
       </div>
       

@@ -7,6 +7,7 @@ interface World3DCanvasProps {
   characterModelPath?: string;
   className?: string;
   onCameraAnimationComplete?: () => void;
+  isMobile?: boolean;
 }
 
 export interface World3DCanvasRef {
@@ -24,13 +25,20 @@ export interface World3DCanvasRef {
 const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({ 
   characterModelPath = '/models/bot.glb',
   className = '',
-  onCameraAnimationComplete
+  onCameraAnimationComplete,
+  isMobile = false
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<World3D | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showLoading, setShowLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMobileRef = useRef(isMobile);
+  
+  // Update mobile ref when prop changes
+  useEffect(() => {
+    isMobileRef.current = isMobile;
+  }, [isMobile]);
 
   // Expose playCharacterAnimation, adjustCamera, and isSpawnSequenceComplete functions to parent components
   useImperativeHandle(ref, () => ({

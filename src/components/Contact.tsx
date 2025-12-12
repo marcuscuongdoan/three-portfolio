@@ -109,7 +109,7 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
     <SectionLayout
       id="contact"
       ref={containerRef}
-      className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 justify-start"
+      className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 justify-start items-center"
     >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -118,12 +118,12 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
         viewport={{ once: true }}
         className="w-full max-w-2xl"
       >
-        <h2 className="text-5xl font-bold mb-4 text-foreground">Get In Touch</h2>
-        <p className="text-lg mb-8 text-foreground/80">
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 text-foreground text-center sm:text-left">Get In Touch</h2>
+        <p className="text-base sm:text-lg mb-6 sm:mb-8 text-foreground/80 text-center sm:text-left">
           Have a question or want to work together? Feel free to reach out!
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {/* Name Field */}
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
@@ -136,7 +136,7 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
               value={formData.name}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 rounded-lg bg-background/50 border border-foreground/20 text-foreground placeholder-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:border-transparent transition-all"
+              className="w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg bg-background/50 border border-foreground/20 text-foreground placeholder-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:border-transparent transition-all text-sm sm:text-base"
               placeholder="Your name"
             />
           </div>
@@ -152,7 +152,7 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
               name="email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-4 py-3 rounded-lg bg-background/50 border border-foreground/20 text-foreground placeholder-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:border-transparent transition-all"
+              className="w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg bg-background/50 border border-foreground/20 text-foreground placeholder-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:border-transparent transition-all text-sm sm:text-base"
               placeholder="your.email@example.com"
             />
           </div>
@@ -169,7 +169,7 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
               onChange={handleChange}
               required
               rows={6}
-              className="w-full px-4 py-3 rounded-lg bg-background/50 border border-foreground/20 text-foreground placeholder-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:border-transparent transition-all resize-none"
+              className="w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg bg-background/50 border border-foreground/20 text-foreground placeholder-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:border-transparent transition-all resize-none text-sm sm:text-base"
               placeholder="Your message..."
             />
           </div>
@@ -195,7 +195,7 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
           <button
             type="submit"
             disabled={status.type === "loading"}
-            className="w-full px-6 py-3 bg-foreground text-background font-semibold rounded-lg hover:bg-foreground/90 focus:outline-none focus:ring-2 focus:ring-foreground/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-6 py-3 bg-foreground text-background font-semibold rounded-lg hover:bg-foreground/90 focus:outline-none focus:ring-2 focus:ring-foreground/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-sm sm:text-base"
           >
             {status.type === "loading" ? "Sending..." : "Send Message"}
           </button>
