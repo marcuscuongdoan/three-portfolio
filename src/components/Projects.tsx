@@ -1,22 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useInView } from "framer-motion";
-import { useRef, useEffect, useState } from "react";
+import { useState, memo } from "react";
 import Image from "next/image";
 import SectionLayout from "@/components/SectionLayout";
 import { useIsMobile } from "@/hooks/useIsMobile";
-
-interface ProjectsProps {
-  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
-  adjustCamera?: (options: {
-    position?: { x: number; y: number; z: number };
-    lookAt?: { x: number; y: number; z: number };
-    duration?: number;
-    easing?: (amount: number) => number;
-    onComplete?: () => void;
-  }) => void;
-}
+import { useCharacterAnimation } from "@/hooks/useCharacterAnimation";
 
 // Template project data
 const projects = [
@@ -70,25 +59,23 @@ well-being`,
   },
 ];
 
-export default function Projects({ playCharacterAnimation, adjustCamera }: ProjectsProps) {
-  const containerRef = useRef(null);
-  const isInView = useInView(containerRef, { once: false, amount: 0.3 });
+export default function Projects() {
   const isMobile = useIsMobile(640);
-
-  // Trigger walk animation and adjust camera when Projects section is in view
-  useEffect(() => {
-    if (isInView) {
-      // Play walk animation with default head tracking
-      playCharacterAnimation?.('walk', true, 0.5, true);
-
-      // Adjust camera position
-      adjustCamera?.({
-        position: { x: 0, y: 1.25, z: 1 },
-        lookAt: { x: 0.5, y: 1.5, z: 0 },
-        duration: 1500
-      });
-    }
-  }, [isInView, playCharacterAnimation, adjustCamera]);
+  
+  // Use custom animation hook
+  const { containerRef, isInView } = useCharacterAnimation({
+    animation: {
+      name: 'walk',
+      loop: true,
+      fadeTime: 0.5,
+      lookAtCamera: true,
+    },
+    camera: {
+      position: { x: 0, y: 1.25, z: 1 },
+      lookAt: { x: 0.5, y: 1.5, z: 0 },
+      duration: 1500,
+    },
+  });
 
   return (
     <SectionLayout
@@ -160,7 +147,7 @@ interface MobileProjectBlockProps {
   index: number;
 }
 
-function MobileProjectBlock({ project, index }: MobileProjectBlockProps) {
+const MobileProjectBlock = memo(function MobileProjectBlock({ project }: MobileProjectBlockProps) {
   const pastelGradients = [
     "linear-gradient(135deg, #FFE5E5 0%, #FFF0F5 100%)",
     "linear-gradient(135deg, #E5F3FF 0%, #F0F8FF 100%)",
@@ -229,7 +216,7 @@ function MobileProjectBlock({ project, index }: MobileProjectBlockProps) {
       </a>
     </div>
   );
-}
+});
 
 interface ProjectBlockProps {
   project: {
@@ -244,7 +231,7 @@ interface ProjectBlockProps {
   totalCount: number;
 }
 
-function ProjectBlock({ project }: ProjectBlockProps) {
+const ProjectBlock = memo(function ProjectBlock({ project }: ProjectBlockProps) {
   const [isHovered, setIsHovered] = useState(false);
   
   // Calculate consistent distance for all items
@@ -368,4 +355,4 @@ function ProjectBlock({ project }: ProjectBlockProps) {
       </div>
     </motion.div>
   );
-}
+});

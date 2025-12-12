@@ -29,7 +29,6 @@ export class World3D {
   // Game loop
   private animationFrameId?: number;
   private clock: THREE.Clock;
-  private lastTime: number = 0;
 
   // State
   private isRunning: boolean = false;
@@ -58,7 +57,6 @@ export class World3D {
 
   // Head bone for look-at
   private headBone?: THREE.Bone;
-  private headBoneOriginalRotation?: THREE.Quaternion;
   private enableHeadTracking: boolean = false; // Control head look-at behavior (disabled by default)
   private mousePosition: THREE.Vector2 = new THREE.Vector2(0, 0);
   private lookAtTarget: THREE.Vector3 = new THREE.Vector3();
@@ -120,7 +118,6 @@ export class World3D {
 
     // Setup scene
     this.setupLights();
-    // this.setupGround();
 
     // Handle window resize
     window.addEventListener('resize', this.handleResize);
@@ -164,35 +161,6 @@ export class World3D {
     this.characterRimLight = new THREE.PointLight(0xaabbff, 4, 12);
     this.characterRimLight.position.set(0, 2, -2);
     this.scene.add(this.characterRimLight);
-  }
-
-  private setupGround() {
-    // Invisible ground for raycasting (no visual)
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
-    const groundMaterial = new THREE.MeshStandardMaterial({ 
-      visible: false // Make ground invisible
-    });
-    this.groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
-    this.groundMesh.rotation.x = -Math.PI / 2;
-    this.groundMesh.receiveShadow = true;
-    this.groundMesh.name = 'ground';
-    this.scene.add(this.groundMesh);
-
-    // Physics ground
-    const groundShape = new CANNON.Plane();
-    const groundBody = new CANNON.Body({
-      mass: 0,
-      shape: groundShape,
-      material: new CANNON.Material({ friction: 0.5, restitution: 0.3 })
-    });
-    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-    this.world.addBody(groundBody);
-
-    // Add grid helper for reference
-    const gridHelper = new THREE.GridHelper(100, 100, 0x000000, 0x000000);
-    gridHelper.material.opacity = 0.2;
-    gridHelper.material.transparent = true;
-    this.scene.add(gridHelper);
   }
 
   public async loadCharacter(modelPath: string): Promise<void> {
@@ -451,6 +419,11 @@ export class World3D {
                 (animFbx: THREE.Group) => {
                   if (animFbx.animations && animFbx.animations.length > 0) {
                     const clip = animFbx.animations[0]; // Get first animation from file
+                    if (!clip) {
+                      console.warn(`No animation clip found in ${animPath}`);
+                      rejectAnim(new Error(`No animation clip in ${animPath}`));
+                      return;
+                    }
                     clip.name = animName; // Rename to our mapping name
                     
                     // Create animation action
@@ -692,7 +665,7 @@ export class World3D {
     // Check intersection with ground
     const intersects = this.raycaster.intersectObject(this.groundMesh);
 
-    if (intersects.length > 0) {
+    if (intersects.length > 0 && intersects[0]) {
       const targetPosition = intersects[0].point;
       targetPosition.y = 2; // Keep character at proper height
       
@@ -1076,7 +1049,7 @@ export class World3D {
       setTimeout(() => {
         if (this.fallingAction) {
           this.fallingAction.fadeOut(0.4);
-        this.playFallingImpact();
+          this.playFallingImpact();
         }
       }, 800);
     } else {
@@ -1143,7 +1116,9 @@ export class World3D {
       if (event.action === this.standingUpAction) {
         this.mixer?.removeEventListener('finished', onStandUpComplete);
         // Reset time scale back to normal
-        this.standingUpAction!.setEffectiveTimeScale(1.0);
+        if (this.standingUpAction) {
+          this.standingUpAction.setEffectiveTimeScale(1.0);
+        }
         this.playIdleAfterSequence();
       }
     };
@@ -1192,7 +1167,6 @@ export class World3D {
         if (boneName.includes('head') && !boneName.includes('top')) {
           if (!this.headBone) { // Only get the first head bone found
             this.headBone = child;
-            this.headBoneOriginalRotation = child.quaternion.clone();
             console.log('Found head bone:', child.name);
             return;
           }

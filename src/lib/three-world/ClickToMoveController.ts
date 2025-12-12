@@ -34,7 +34,6 @@ export class ClickToMoveController {
 
   // Movement state
   private currentState: MovementState = MovementState.Idle;
-  private targetPosition: THREE.Vector3 | null = null;
   private isMoving: boolean = false;
 
   // Jumping
@@ -106,7 +105,6 @@ export class ClickToMoveController {
       this.tweenGroup.removeAll();
     }
 
-    this.targetPosition = targetPosition.clone();
     this.isMoving = true;
 
     // Calculate distance and time
@@ -159,7 +157,7 @@ export class ClickToMoveController {
   /**
    * Main update loop
    */
-  public update(deltaTime: number, world: CANNON.World): void {
+  public update(deltaTime: number, _world: CANNON.World): void {
     // Update animation controller
     this.animationController.update(deltaTime);
 
@@ -259,7 +257,7 @@ export class ClickToMoveController {
   /**
    * Dispose of resources
    */
-  public dispose(world: CANNON.World): void {
+  public dispose(_world: CANNON.World): void {
     if (this.currentTween) {
       this.currentTween.stop();
     }

@@ -1,51 +1,51 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { useState, useOptimistic, useTransition } from "react";
+import { motion } from "framer-motion";
 import SectionLayout from "@/components/SectionLayout";
+import { useCharacterAnimation } from "@/hooks/useCharacterAnimation";
+import { useWorld3DStore } from "@/store/useWorld3DStore";
 
-interface ContactProps {
-  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
-  adjustCamera?: (options: {
-    position?: { x: number; y: number; z: number };
-    lookAt?: { x: number; y: number; z: number };
-    duration?: number;
-    easing?: (amount: number) => number;
-    onComplete?: () => void;
-  }) => void;
-}
+type FormStatus = {
+  type: "idle" | "loading" | "success" | "error";
+  message: string;
+};
 
-export default function Contact({ playCharacterAnimation, adjustCamera }: ContactProps) {
-  const containerRef = useRef(null);
-  const isInView = useInView(containerRef, { once: false, amount: 0.3 });
+export default function Contact() {
+  const { playCharacterAnimation } = useWorld3DStore();
+  const [isPending, startTransition] = useTransition();
+  
+  // Use custom animation hook
+  const { containerRef } = useCharacterAnimation({
+    animation: {
+      name: 'typing',
+      loop: true,
+      fadeTime: 0.5,
+      lookAtCamera: true,
+    },
+    camera: {
+      position: { x: 0.5, y: 1, z: 0.75 },
+      lookAt: { x: -1.5, y: 2, z: 0 },
+      duration: 1500,
+    },
+  });
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     content: "",
   });
-  const [status, setStatus] = useState<{
-    type: "idle" | "loading" | "success" | "error";
-    message: string;
-  }>({
+  
+  const [status, setStatus] = useState<FormStatus>({
     type: "idle",
     message: "",
   });
 
-  // Trigger run animation and adjust camera when Contact section is in view
-  useEffect(() => {
-    if (isInView) {
-      // Play run animation with default head tracking
-      playCharacterAnimation?.("typing", true, 0.5);
-
-      // Move camera a bit away
-      adjustCamera?.({
-          position: { x: 0.5, y: 1, z: 0.75 },
-          lookAt: { x: -1.5, y: 2, z: 0 },
-          duration: 1500,
-      });
-    }
-  }, [isInView, playCharacterAnimation, adjustCamera]);
+  // Optimistic status for immediate UI feedback
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(
+    status,
+    (_state, newStatus: FormStatus) => newStatus
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -67,42 +67,43 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
       return;
     }
 
-    setStatus({ type: "loading", message: "Sending message..." });
+    // Optimistically show loading state
+    setOptimisticStatus({ type: "loading", message: "Sending message..." });
 
-    try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setStatus({
-          type: "success",
-          message: "Message sent successfully! I'll get back to you soon.",
+    startTransition(async () => {
+      try {
+        const response = await fetch("/api/contact", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
         });
-        setFormData({ name: "", email: "", content: "" });
-        
-        // Play wave animation if available
-        if (playCharacterAnimation) {
-          playCharacterAnimation("Wave", false);
+
+        const data = await response.json();
+
+        if (response.ok) {
+          setStatus({
+            type: "success",
+            message: "Message sent successfully! I'll get back to you soon.",
+          });
+          setFormData({ name: "", email: "", content: "" });
+          
+          // Play wave/cheering animation if available
+          playCharacterAnimation("cheering", false);
+        } else {
+          setStatus({
+            type: "error",
+            message: data.error || "Failed to send message. Please try again.",
+          });
         }
-      } else {
+      } catch (error) {
         setStatus({
           type: "error",
-          message: data.error || "Failed to send message. Please try again.",
+          message: "An error occurred. Please try again later.",
         });
       }
-    } catch (error) {
-      setStatus({
-        type: "error",
-        message: "An error occurred. Please try again later.",
-      });
-    }
+    });
   };
 
   return (
@@ -174,30 +175,30 @@ export default function Contact({ playCharacterAnimation, adjustCamera }: Contac
             />
           </div>
 
-          {/* Status Message */}
-          {status.type !== "idle" && (
+          {/* Status Message - Using optimistic state */}
+          {optimisticStatus.type !== "idle" && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className={`p-4 rounded-lg ${
-                status.type === "success"
+                optimisticStatus.type === "success"
                   ? "bg-green-500/20 text-green-300 border border-green-500/30"
-                  : status.type === "error"
+                  : optimisticStatus.type === "error"
                   ? "bg-red-500/20 text-red-300 border border-red-500/30"
                   : "bg-blue-500/20 text-blue-300 border border-blue-500/30"
               }`}
             >
-              {status.message}
+              {optimisticStatus.message}
             </motion.div>
           )}
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={status.type === "loading"}
+            disabled={optimisticStatus.type === "loading" || isPending}
             className="w-full px-6 py-3 bg-foreground text-background font-semibold rounded-lg hover:bg-foreground/90 focus:outline-none focus:ring-2 focus:ring-foreground/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-sm sm:text-base"
           >
-            {status.type === "loading" ? "Sending..." : "Send Message"}
+            {optimisticStatus.type === "loading" || isPending ? "Sending..." : "Send Message"}
           </button>
         </form>
       </motion.div>

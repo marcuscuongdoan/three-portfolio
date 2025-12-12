@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, memo } from 'react';
 import { World3D } from '@/lib/three-world/World3D';
+import { useWorld3DStore } from '@/store/useWorld3DStore';
 
 interface World3DCanvasProps {
   characterModelPath?: string;
   className?: string;
   onCameraAnimationComplete?: () => void;
+  onSpawnSequenceComplete?: () => void;
   isMobile?: boolean;
 }
 
@@ -22,10 +24,11 @@ export interface World3DCanvasRef {
   isSpawnSequenceComplete: () => boolean;
 }
 
-const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({ 
+const World3DCanvas = memo(forwardRef<World3DCanvasRef, World3DCanvasProps>(({ 
   characterModelPath = '/models/bot.glb',
   className = '',
   onCameraAnimationComplete,
+  onSpawnSequenceComplete,
   isMobile = false
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,6 +37,9 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
   const [showLoading, setShowLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isMobileRef = useRef(isMobile);
+  
+  // Get Zustand store actions
+  const { setPlayCharacterAnimation, setAdjustCamera, setSpawnSequenceComplete } = useWorld3DStore();
   
   // Update mobile ref when prop changes
   useEffect(() => {
@@ -65,7 +71,33 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
       }
       return false;
     }
-  }));
+  }), []);
+
+  // Event-based spawn sequence completion check
+  useEffect(() => {
+    if (!worldRef.current) return;
+
+    const checkSpawnComplete = () => {
+      if (worldRef.current?.isSpawnSequenceComplete()) {
+        // Update Zustand store
+        setSpawnSequenceComplete(true);
+        // Call prop callback if provided
+        if (onSpawnSequenceComplete) {
+          onSpawnSequenceComplete();
+        }
+      } else {
+        // Check again in next frame
+        requestAnimationFrame(checkSpawnComplete);
+      }
+    };
+
+    // Start checking after brief delay to ensure world is initialized
+    const timeoutId = setTimeout(checkSpawnComplete, 500);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [onSpawnSequenceComplete, setSpawnSequenceComplete]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -73,6 +105,20 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
     // Initialize World3D
     const world = new World3D(containerRef.current);
     worldRef.current = world;
+
+    // Register functions with Zustand store
+    setPlayCharacterAnimation((animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => {
+      if (worldRef.current) {
+        return worldRef.current.playCharacterAnimation(animationName, loop, fadeTime, lookAtCamera);
+      }
+      return false;
+    });
+
+    setAdjustCamera((options) => {
+      if (worldRef.current) {
+        worldRef.current.adjustCamera(options);
+      }
+    });
 
     // Set up camera animation complete callback
     if (onCameraAnimationComplete) {
@@ -173,7 +219,7 @@ const World3DCanvas = forwardRef<World3DCanvasRef, World3DCanvasProps>(({
       )}
     </div>
   );
-});
+}));
 
 World3DCanvas.displayName = 'World3DCanvas';
 

@@ -78,7 +78,7 @@ export class CameraController {
     return this.distance;
   }
 
-  public update(targetPosition: THREE.Vector3, deltaTime: number) {
+  public update(targetPosition: THREE.Vector3, _deltaTime: number) {
     // Update target position (character position + pan offset)
     this.target.copy(targetPosition).add(this.panOffset);
 

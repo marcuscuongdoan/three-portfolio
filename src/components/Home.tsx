@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import SectionLayout from "@/components/SectionLayout";
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
+import { useCharacterAnimation } from "@/hooks/useCharacterAnimation";
 
 const techStack = [
   {
@@ -47,21 +48,23 @@ const techStack = [
   }
 ];
 
-interface HomeProps {
-  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
-  adjustCamera?: (options: {
-    position?: { x: number; y: number; z: number };
-    lookAt?: { x: number; y: number; z: number };
-    duration?: number;
-    easing?: (amount: number) => number;
-    onComplete?: () => void;
-  }) => void;
-}
-
-export default function Home({ playCharacterAnimation, adjustCamera }: HomeProps) {
+export default function Home() {
   const [showText, setShowText] = useState(false);
-  const homeRef = useRef(null);
-  const isHomeInView = useInView(homeRef, { once: false, amount: 0.3 });
+  
+  // Use custom animation hook
+  const { containerRef } = useCharacterAnimation({
+    animation: {
+      name: 'idle',
+      loop: true,
+      fadeTime: 0.5,
+      lookAtCamera: true,
+    },
+    camera: {
+      position: { x: 0, y: 1.7, z: 1 },
+      lookAt: { x: 0.5, y: 1.5, z: 0 },
+      duration: 1500,
+    },
+  });
 
   useEffect(() => {
     // Show text after a delay
@@ -70,25 +73,10 @@ export default function Home({ playCharacterAnimation, adjustCamera }: HomeProps
     }, 1000);
   }, []);
 
-  // Trigger idle animation and default camera position when Home section is in view
-  useEffect(() => {
-    if (isHomeInView) {
-      // Play idle animation with no head tracking
-      playCharacterAnimation?.('idle', true, 0.5, true);
-
-      // Set default camera position
-      adjustCamera?.({
-        position: { x: 0, y: 1.7, z: 1 },
-        lookAt: { x: 0.5, y: 1.5, z: 0 },
-        duration: 1500
-      });
-    }
-  }, [isHomeInView, playCharacterAnimation, adjustCamera]);
-
   return (
     <SectionLayout 
       id="home" 
-      ref={homeRef}
+      ref={containerRef}
       className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 justify-end sm:justify-end items-center sm:items-end"
     >
       <motion.div

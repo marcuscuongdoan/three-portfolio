@@ -6,32 +6,6 @@ import Projects from "@/components/Projects";
 import Contact from "@/components/Contact";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
-interface HomeContentProps {
-  playCharacterAnimation?: (animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => boolean;
-  adjustCamera?: (options: {
-    position?: { x: number; y: number; z: number };
-    lookAt?: { x: number; y: number; z: number };
-    duration?: number;
-    easing?: (amount: number) => number;
-    onComplete?: () => void;
-  }) => void;
-}
-
-function HomeContent({ playCharacterAnimation, adjustCamera }: HomeContentProps) {
-  return (
-    <>
-      {/* Home Section */}
-      <Home playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
-
-      {/* Projects Section */}
-      <Projects playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
-
-      {/* Contact Section */}
-      <Contact playCharacterAnimation={playCharacterAnimation} adjustCamera={adjustCamera} />
-    </>
-  );
-}
-
 export default function Page() {
   const isMobile = useIsMobile(640);
   
@@ -43,7 +17,14 @@ export default function Page() {
       enableCloudControls={true}
       className={isMobile ? "" : "snap-y snap-mandatory"}
     >
-      <HomeContent />
+      {/* Home Section */}
+      <Home />
+
+      {/* Projects Section */}
+      <Projects />
+
+      {/* Contact Section */}
+      <Contact />
     </BaseLayout>
   );
 }

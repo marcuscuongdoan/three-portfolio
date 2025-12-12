@@ -54,10 +54,11 @@ const CloudBackground = forwardRef<CloudBackgroundRef, CloudBackgroundProps>(
     // Generate random cloud
     const generateCloud = (repeat: number = Infinity): Cloud => {
       const cloudImages = ['/clouds/cloud1.png', '/clouds/cloud2.png'];
+      const randomIndex = Math.floor(Math.random() * cloudImages.length);
       
       return {
         id: cloudIdCounter.current++,
-        image: cloudImages[Math.floor(Math.random() * cloudImages.length)],
+        image: cloudImages[randomIndex] ?? cloudImages[0] ?? '/clouds/cloud1.png',
         top: Math.random() * 80, // Random vertical position (0-80%)
         size: Math.random() * 500 + 400, // Random size between 400px and 900px
         duration: Math.random() * (maxDurationRef.current - minDurationRef.current) + minDurationRef.current,
@@ -145,10 +146,11 @@ const CloudBackground = forwardRef<CloudBackgroundRef, CloudBackgroundProps>(
         
         // Spread clouds across the screen horizontally at start (left side)
         const startX = -Math.random() * 120; // -120 to 0% of screen width (some off-screen left)
+        const randomIndex = Math.floor(Math.random() * cloudImages.length);
         
         burstClouds.push({
           id: cloudIdCounter.current++,
-          image: cloudImages[Math.floor(Math.random() * cloudImages.length)],
+          image: cloudImages[randomIndex] ?? cloudImages[0] ?? '/clouds/cloud1.png',
           top: Math.random() * 80,
           size: Math.random() * 500 + 400,
           duration,

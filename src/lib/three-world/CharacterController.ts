@@ -47,13 +47,11 @@ export class CharacterController {
   // State
   private currentState: MovementState = MovementState.Idle;
   private isOnGround: boolean = false;
-  private world: CANNON.World;
 
   constructor(options: CharacterControllerOptions) {
     this.mesh = options.mesh;
     this.inputManager = options.inputManager;
     this.cameraController = options.cameraController;
-    this.world = options.world;
     this.radius = options.radius ?? 0.3;
     this.height = options.height ?? 1.7;
     this.maxJumps = options.maxJumps ?? 2;
@@ -294,7 +292,7 @@ export class CharacterController {
   /**
    * Dispose of resources
    */
-  public dispose(world: CANNON.World): void {
+  public dispose(_world: CANNON.World): void {
     this.physicsBody.dispose();
     this.animationController.dispose();
     this.movementController.resetVelocity();
