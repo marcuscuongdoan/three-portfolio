@@ -73,33 +73,8 @@ const World3DCanvas = memo(forwardRef<World3DCanvasRef, World3DCanvasProps>(({
     }
   }), []);
 
-  // Event-based spawn sequence completion check
   useEffect(() => {
-    if (!worldRef.current) return;
 
-    const checkSpawnComplete = () => {
-      if (worldRef.current?.isSpawnSequenceComplete()) {
-        // Update Zustand store
-        setSpawnSequenceComplete(true);
-        // Call prop callback if provided
-        if (onSpawnSequenceComplete) {
-          onSpawnSequenceComplete();
-        }
-      } else {
-        // Check again in next frame
-        requestAnimationFrame(checkSpawnComplete);
-      }
-    };
-
-    // Start checking after brief delay to ensure world is initialized
-    const timeoutId = setTimeout(checkSpawnComplete, 500);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [onSpawnSequenceComplete, setSpawnSequenceComplete]);
-
-  useEffect(() => {
     if (!containerRef.current) return;
 
     // Initialize World3D
@@ -159,6 +134,33 @@ const World3DCanvas = memo(forwardRef<World3DCanvasRef, World3DCanvasProps>(({
         
         // Start the world
         world.start();
+        
+        // Start spawn sequence completion check after world starts
+        let animationFrameId: number | null = null;
+        let hasCompleted = false;
+
+        const checkSpawnComplete = () => {
+          if (hasCompleted) return;
+          
+          if (world.isSpawnSequenceComplete()) {
+            hasCompleted = true;
+            console.log('World3DCanvas detected spawn sequence complete');
+            
+            // Update Zustand store
+            setSpawnSequenceComplete(true);
+            
+            // Call prop callback if provided
+            if (onSpawnSequenceComplete) {
+              onSpawnSequenceComplete();
+            }
+          } else {
+            // Check again in next frame
+            animationFrameId = requestAnimationFrame(checkSpawnComplete);
+          }
+        };
+
+        // Start checking immediately
+        checkSpawnComplete();
         
         // Start fade-out
         setIsLoading(false);

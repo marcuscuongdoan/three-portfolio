@@ -1111,19 +1111,19 @@ export class World3D {
     this.currentAnimationAction = this.standingUpAction;
     console.log('Step 3: Playing standing-up animation (2.5x speed)');
 
-    // Listen for standing-up animation completion
-    const onStandUpComplete = (event: any) => {
-      if (event.action === this.standingUpAction) {
-        this.mixer?.removeEventListener('finished', onStandUpComplete);
-        // Reset time scale back to normal
-        if (this.standingUpAction) {
-          this.standingUpAction.setEffectiveTimeScale(1.0);
-        }
-        this.playIdleAfterSequence();
+    // Calculate animation duration: original duration / time scale
+    const animDuration = this.standingUpAction.getClip().duration;
+    const adjustedDuration = (animDuration / 2.5) * 1000; // Convert to ms
+    
+    // Use timeout instead of event listener for more reliable completion
+    // Add small buffer time for fade transitions
+    setTimeout(() => {
+      // Reset time scale back to normal
+      if (this.standingUpAction) {
+        this.standingUpAction.setEffectiveTimeScale(1.0);
       }
-    };
-
-    this.mixer.addEventListener('finished', onStandUpComplete);
+      this.playIdleAfterSequence();
+    }, adjustedDuration + 300); // Add 300ms buffer for fade-in
   }
 
   /**
