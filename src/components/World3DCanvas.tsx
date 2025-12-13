@@ -80,6 +80,9 @@ const World3DCanvas = memo(forwardRef<World3DCanvasRef, World3DCanvasProps>(({
     // Initialize World3D
     const world = new World3D(containerRef.current);
     worldRef.current = world;
+    
+    // Track animation frame for cleanup
+    let spawnCheckFrameId: number | null = null;
 
     // Register functions with Zustand store
     setPlayCharacterAnimation((animationName: string, loop?: boolean, fadeTime?: number, lookAtCamera?: boolean) => {
@@ -136,7 +139,6 @@ const World3DCanvas = memo(forwardRef<World3DCanvasRef, World3DCanvasProps>(({
         world.start();
         
         // Start spawn sequence completion check after world starts
-        let animationFrameId: number | null = null;
         let hasCompleted = false;
 
         const checkSpawnComplete = () => {
@@ -155,7 +157,7 @@ const World3DCanvas = memo(forwardRef<World3DCanvasRef, World3DCanvasProps>(({
             }
           } else {
             // Check again in next frame
-            animationFrameId = requestAnimationFrame(checkSpawnComplete);
+            spawnCheckFrameId = requestAnimationFrame(checkSpawnComplete);
           }
         };
 
@@ -183,6 +185,11 @@ const World3DCanvas = memo(forwardRef<World3DCanvasRef, World3DCanvasProps>(({
 
     // Cleanup
     return () => {
+      // Cancel any pending animation frame
+      if (spawnCheckFrameId !== null) {
+        cancelAnimationFrame(spawnCheckFrameId);
+      }
+      
       if (worldRef.current) {
         worldRef.current.dispose();
         worldRef.current = null;
