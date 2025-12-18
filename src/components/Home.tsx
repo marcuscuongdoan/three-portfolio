@@ -181,13 +181,12 @@ export default function Home() {
         </motion.div>
 
         {/* Social Links */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 20 }}
           transition={{ duration: 0.8, delay: 0.8 }}
           className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 justify-center sm:justify-end"
         >
-          {/* GitHub Link */}
           <a
             href="https://github.com/marcuscuongdoan"
             target="_blank"
@@ -204,7 +203,6 @@ export default function Home() {
             <span className="font-medium text-sm sm:text-base text-blue-600 group-hover:text-blue-700 transition-colors">GitHub</span>
           </a>
 
-          {/* LinkedIn Link */}
           <a
             href="https://www.linkedin.com/in/marcus-cuong-doan/"
             target="_blank"
@@ -220,7 +218,7 @@ export default function Home() {
             </svg>
             <span className="font-medium text-sm sm:text-base text-blue-700">LinkedIn</span>
           </a>
-        </motion.div>
+        </motion.div> */}
 
         {/* CTA Arrow */}
         <motion.div
