@@ -23,6 +23,25 @@
   --color-brown-800: #3D3935;
   --color-brown-700: #4F4943;
   --color-brown-600: #625B54;
+
+  /* League of Legends palette (used under /legends) */
+  --font-lol: var(--font-lol-display), serif;
+  --color-lol-void: #010A13;
+  --color-lol-navy: #0A1428;
+  --color-lol-slate: #1E2328;
+  --color-lol-gold-100: #F0E6D2;
+  --color-lol-gold-200: #C8AA6E;
+  --color-lol-gold-300: #C89B3C;
+  --color-lol-gold-400: #785A28;
+  --color-lol-gold-500: #463714;
+  --color-lol-blue-100: #CDFAFA;
+  --color-lol-blue-200: #0AC8B9;
+  --color-lol-blue-300: #0397AB;
+  --color-lol-blue-400: #005A82;
+  --color-lol-grey-100: #A09B8C;
+  --color-lol-grey-200: #5B5A56;
+  --color-lol-grey-300: #3C3C41;
+  --color-lol-red: #E84057;
 }
 
 @media (prefers-color-scheme: dark) {

@@ -1,0 +1,142 @@
+/* Campfire character-select theme, scoped to /trial via .theme-trial */
+
+.theme-trial {
+  --background: #1a1230;
+  --foreground: #f5ecd7;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.trial-gold-text {
+  background: linear-gradient(180deg, #fff6d5 0%, #f8d26a 50%, #c58a1c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.85));
+}
+
+.trial-shadow-text {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.trial-label {
+  transform-origin: bottom center;
+}
+
+/* Top menu bar with gold rule lines */
+.trial-topbar {
+  background: linear-gradient(180deg, rgba(8, 5, 20, 0.75), rgba(8, 5, 20, 0.35));
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, #c8a04a 20%, #f8d26a 50%, #c8a04a 80%, transparent) 1;
+}
+
+/* Red WoW-style button */
+/* No `position` here: this file is unlayered, so it would override Tailwind's
+   `fixed` on the buttons and drop them into the page flow */
+.trial-button {
+  font-family: var(--font-lol-display), serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #ffe9a8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  background: linear-gradient(180deg, #b31b1b 0%, #7a0d0d 55%, #4d0606 100%);
+  border: 2px solid #c8a04a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 150, 0.35),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 4px 14px rgba(0, 0, 0, 0.55);
+  transition: filter 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.trial-button:hover {
+  filter: brightness(1.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 150, 0.45),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 16px rgba(255, 190, 80, 0.45),
+    0 4px 14px rgba(0, 0, 0, 0.55);
+}
+.trial-button:active {
+  transform: translateY(1px);
+}
+
+.trial-panel {
+  background: linear-gradient(180deg, rgba(20, 12, 40, 0.88), rgba(10, 6, 22, 0.92));
+  border: 1px solid color-mix(in srgb, var(--trial-accent, #c8a04a) 55%, #c8a04a);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 40px color-mix(in srgb, var(--trial-accent, #c8a04a) 25%, transparent),
+    0 18px 40px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+/* Themed scrollbars: gold by default, the legend's accent inside its panel */
+.theme-trial {
+  --trial-scroll-thumb: #c8a04a;
+  --trial-scroll-track: rgba(8, 5, 20, 0.6);
+}
+.theme-trial .trial-scroll {
+  --trial-scroll-thumb: color-mix(in srgb, var(--trial-accent, #c8a04a) 70%, #f8d26a);
+}
+/* Firefox only: Chrome ignores the ::-webkit-scrollbar styling below on any
+   element that sets scrollbar-color */
+@supports not selector(::-webkit-scrollbar) {
+  .theme-trial .trial-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--trial-scroll-thumb) transparent;
+  }
+}
+.theme-trial ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.theme-trial ::-webkit-scrollbar-track {
+  background: var(--trial-scroll-track);
+  border-left: 1px solid rgba(200, 160, 74, 0.15);
+}
+.theme-trial .trial-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 6px;
+}
+.theme-trial ::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background: linear-gradient(180deg, #f8d26a, var(--trial-scroll-thumb)) padding-box;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.theme-trial ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #fff1b8, var(--trial-scroll-thumb)) padding-box;
+}
+.theme-trial ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.trial-divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--trial-accent, #c8a04a), transparent);
+}
+
+@keyframes trial-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.trial-panel-enter {
+  animation: trial-panel-in 0.45s 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes trial-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.trial-fade-in {
+  animation: trial-fade-in 0.4s ease-out both;
+}

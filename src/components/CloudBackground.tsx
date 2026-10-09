@@ -1,7 +1,9 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useState, useRef } from 'react';
+
+const CLOUD_IMAGES = ['/clouds/cloud1.webp', '/clouds/cloud2.webp'];
 
 interface Cloud {
   id: number;
@@ -11,6 +13,7 @@ interface Cloud {
   duration: number;
   delay: number;
   repeat: number; // 0 for one-time, Infinity for continuous
+  startX?: number; // Custom start position (vw) for burst clouds
 }
 
 interface CloudBackgroundProps {
@@ -20,226 +23,144 @@ interface CloudBackgroundProps {
   maxDuration?: number;
 }
 
-export interface CloudBackgroundRef {
-  moreCloud: () => void;
-  lessCloud: () => void;
-  increaseSpeed: () => void;
-  decreaseSpeed: () => void;
-}
+export default function CloudBackground({
+  opacity = 1,
+  maxClouds = 10,
+  minDuration = 20,
+  maxDuration = 40,
+}: CloudBackgroundProps) {
+  const [clouds, setClouds] = useState<Cloud[]>([]);
+  const [containerOpacity, setContainerOpacity] = useState(0); // Start invisible
+  const [containerScale, setContainerScale] = useState(5); // Start zoomed in
+  const cloudContainerRef = useRef<HTMLDivElement>(null);
+  const cloudIdCounter = useRef(0);
+  const minDurationRef = useRef(minDuration);
+  const maxDurationRef = useRef(maxDuration);
+  const hasInitialized = useRef(false);
 
-const CloudBackground = forwardRef<CloudBackgroundRef, CloudBackgroundProps>(
-  function CloudBackground(
-    {
-      opacity = 1,
-      maxClouds = 10,
-      minDuration = 20,
-      maxDuration = 40,
-    },
-    ref
-  ) {
-    const [clouds, setClouds] = useState<Cloud[]>([]);
-    const [containerOpacity, setContainerOpacity] = useState(0); // Start invisible
-    const [containerScale, setContainerScale] = useState(5); // Start zoomed in
-    const cloudContainerRef = useRef<HTMLDivElement>(null);
-    const cloudIdCounter = useRef(0);
-    const minDurationRef = useRef(minDuration);
-    const maxDurationRef = useRef(maxDuration);
+  // Update refs when props change
+  useEffect(() => {
+    minDurationRef.current = minDuration;
+    maxDurationRef.current = maxDuration;
+  }, [minDuration, maxDuration]);
 
-    // Update refs when props change
-    useEffect(() => {
-      minDurationRef.current = minDuration;
-      maxDurationRef.current = maxDuration;
-    }, [minDuration, maxDuration]);
+  // Fade container opacity and scale after 1 second
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setContainerOpacity(1);
+      setContainerScale(1); // Scale back to normal
+    }, 1000); // Wait 1 second, then animate
 
-    // Generate random cloud
-    const generateCloud = (repeat: number = Infinity): Cloud => {
-      const cloudImages = ['/clouds/cloud1.png', '/clouds/cloud2.png'];
-      const randomIndex = Math.floor(Math.random() * cloudImages.length);
-      
-      return {
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Initial burst + repeating clouds; adapts when maxClouds changes
+  useEffect(() => {
+    const randomDuration = () =>
+      Math.random() * (maxDurationRef.current - minDurationRef.current) +
+      minDurationRef.current;
+
+    const randomImage = () =>
+      CLOUD_IMAGES[Math.floor(Math.random() * CLOUD_IMAGES.length)] ??
+      CLOUD_IMAGES[0] ??
+      '';
+
+    const generateCloud = (repeat: number): Cloud => ({
+      id: cloudIdCounter.current++,
+      image: randomImage(),
+      top: Math.random() * 80, // Random vertical position (0-80%)
+      size: Math.random() * 500 + 400, // Random size between 400px and 900px
+      duration: randomDuration(),
+      delay: Math.random() * 5, // Random initial delay
+      repeat,
+    });
+
+    const makeNormalClouds = () =>
+      Array.from({ length: maxClouds }, () => generateCloud(Infinity));
+
+    if (hasInitialized.current) {
+      // maxClouds changed after mount (e.g. mobile detection flipped):
+      // trim burst clouds to the new budget and regenerate repeating ones
+      setClouds((prev) => [
+        ...prev.filter((c) => c.repeat === 0).slice(0, maxClouds),
+        ...makeNormalClouds(),
+      ]);
+      return;
+    }
+    hasInitialized.current = true;
+
+    // Burst effect that fills the screen quickly, capped by maxClouds so
+    // low-power devices don't animate 50 large images at once
+    const burstCount = Math.min(50, maxClouds);
+    const burstClouds: Cloud[] = [];
+
+    for (let i = 0; i < burstCount; i++) {
+      // Progressive speed: first clouds fast, gradually slower
+      const speedMultiplier = 0.1 + (i / burstCount) * 0.9; // 0.1 to 1.0
+
+      burstClouds.push({
         id: cloudIdCounter.current++,
-        image: cloudImages[randomIndex] ?? cloudImages[0] ?? '/clouds/cloud1.png',
-        top: Math.random() * 80, // Random vertical position (0-80%)
-        size: Math.random() * 500 + 400, // Random size between 400px and 900px
-        duration: Math.random() * (maxDurationRef.current - minDurationRef.current) + minDurationRef.current,
-        delay: Math.random() * 5, // Random initial delay
-        repeat,
-      };
-    };
-
-    // Add more clouds
-    const moreCloud = () => {
-      setClouds((prevClouds) => [...prevClouds, generateCloud(Infinity)]);
-    };
-
-    // Remove clouds
-    const lessCloud = () => {
-      setClouds((prevClouds) => {
-        if (prevClouds.length > 0) {
-          return prevClouds.slice(0, -1);
-        }
-        return prevClouds;
+        image: randomImage(),
+        top: Math.random() * 80,
+        size: Math.random() * 500 + 400,
+        duration: randomDuration() * speedMultiplier,
+        delay: Math.random() * 0.1, // Very quick start
+        repeat: 0, // One-time animation
+        // Spread clouds across the screen horizontally at start (some off-screen left)
+        startX: -Math.random() * 120,
       });
-    };
+    }
 
-    // Increase cloud speed (reduce duration)
-    const increaseSpeed = () => {
-      setClouds((prevClouds) =>
-        prevClouds.map((cloud) => ({
-          ...cloud,
-          duration: Math.max(5, cloud.duration * 0.8), // Reduce duration by 20%, minimum 5s
-        }))
-      );
-    };
+    setClouds(burstClouds);
 
-    // Decrease cloud speed (increase duration)
-    const decreaseSpeed = () => {
-      setClouds((prevClouds) =>
-        prevClouds.map((cloud) => ({
-          ...cloud,
-          duration: Math.min(60, cloud.duration * 1.25), // Increase duration by 25%, maximum 60s
-        }))
-      );
-    };
+    // After 3 seconds, add normal repeating clouds
+    const normalTimer = setTimeout(() => {
+      setClouds((prev) => [...prev, ...makeNormalClouds()]);
+    }, 3000);
 
-    // Expose methods via ref
-    useImperativeHandle(ref, () => ({
-      moreCloud,
-      lessCloud,
-      increaseSpeed,
-      decreaseSpeed,
-    }));
+    return () => clearTimeout(normalTimer);
+  }, [maxClouds]);
 
-    // Fade container opacity and scale after 1 second
-    useEffect(() => {
-      const timer = setTimeout(() => {
-        setContainerOpacity(1);
-        setContainerScale(1); // Scale back to normal
-      }, 1000); // Wait 1 second, then animate
-      
-      return () => clearTimeout(timer);
-    }, []);
-
-    // Handle window resize to ensure clouds animate correctly
-    useEffect(() => {
-      const handleResize = () => {
-        // Force a re-render of cloud positions on resize
-        setClouds((prevClouds) => [...prevClouds]);
-      };
-
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    // Initialize with burst effect that fills screen quickly
-    useEffect(() => {
-      const burstClouds: Cloud[] = [];
-      const cloudImages = ['/clouds/cloud1.png', '/clouds/cloud2.png'];
-      const burstCount = 50; // Many clouds for full screen coverage
-      
-      // Generate burst clouds that start at different positions across the screen
-      for (let i = 0; i < burstCount; i++) {
-        const baseDuration = Math.random() * (maxDurationRef.current - minDurationRef.current) + minDurationRef.current;
-        // Progressive speed: first clouds fast, gradually slower
-        const speedMultiplier = 0.1 + (i / burstCount) * 0.9; // 0.1 to 1.0
-        const duration = baseDuration * speedMultiplier;
-        
-        // Spread clouds across the screen horizontally at start (left side)
-        const startX = -Math.random() * 120; // -120 to 0% of screen width (some off-screen left)
-        const randomIndex = Math.floor(Math.random() * cloudImages.length);
-        
-        burstClouds.push({
-          id: cloudIdCounter.current++,
-          image: cloudImages[randomIndex] ?? cloudImages[0] ?? '/clouds/cloud1.png',
-          top: Math.random() * 80,
-          size: Math.random() * 500 + 400,
-          duration,
-          delay: Math.random() * 0.1, // Very quick start
-          repeat: 0, // One-time animation
-          startX, // Custom property to track start position
-        } as any);
-      }
-      
-      setClouds(burstClouds);
-
-      // After 3 seconds, add normal repeating clouds
-      const normalTimer = setTimeout(() => {
-        const normalClouds: Cloud[] = [];
-        for (let i = 0; i < maxClouds; i++) {
-          normalClouds.push(generateCloud(Infinity));
-        }
-        setClouds((prev) => [...prev, ...normalClouds]);
-      }, 3000);
-
-      return () => clearTimeout(normalTimer);
-    }, []);
-
-    // Update clouds when maxClouds prop changes after initial mount
-    useEffect(() => {
-      const timer = setTimeout(() => {
-        if (clouds.length > 0) {
-          // Keep burst clouds, update only infinite repeat clouds
-          const burstClouds = clouds.filter(c => c.repeat === 0);
-          const normalClouds: Cloud[] = [];
-          for (let i = 0; i < maxClouds; i++) {
-            normalClouds.push(generateCloud(Infinity));
-          }
-          setClouds([...burstClouds, ...normalClouds]);
-        }
-      });
-
-      return () => clearTimeout(timer);
-    }, [maxClouds]);
-
-    // Update CSS variable for opacity without re-rendering
-    useEffect(() => {
-      if (cloudContainerRef.current) {
-        cloudContainerRef.current.style.setProperty('--cloud-opacity', opacity.toString());
-      }
-    }, [opacity]);
-
-    return (
-      <div
-        ref={cloudContainerRef}
-        className="fixed inset-0 bg-background overflow-hidden pointer-events-none"
-        style={{
-          zIndex: 0,
-          opacity: containerOpacity,
-          transform: `scale(${containerScale})`,
-          transition: 'opacity 0.5s ease-out, transform 1s ease-out',
-          ['--cloud-opacity' as string]: opacity, // Use prop opacity for individual clouds
-        }}
-      >
-        {clouds.map((cloud) => (
-          <motion.div
-            key={cloud.id}
-            className="absolute"
-            style={{
-              top: `${cloud.top}%`,
-              width: `${cloud.size}px`,
-              height: `${cloud.size}px`,
-              opacity: 'var(--cloud-opacity)',
-            }}
-            initial={{ x: (cloud as any).startX !== undefined ? `${(cloud as any).startX}vw` : '-100%' }}
-            animate={{ x: '100vw' }}
-            transition={{
-              duration: cloud.duration,
-              delay: cloud.delay,
-              repeat: cloud.repeat,
-              ease: 'linear',
-            }}
-          >
-            <img
-              src={cloud.image}
-              alt=""
-              className="w-full h-full object-contain"
-              draggable={false}
-            />
-          </motion.div>
-        ))}
-      </div>
-    );
-  }
-);
-
-export default CloudBackground;
+  return (
+    <div
+      ref={cloudContainerRef}
+      className="fixed inset-0 bg-background overflow-hidden pointer-events-none"
+      style={{
+        zIndex: 0,
+        opacity: containerOpacity,
+        transform: `scale(${containerScale})`,
+        transition: 'opacity 0.5s ease-out, transform 1s ease-out',
+        ['--cloud-opacity' as string]: opacity, // Use prop opacity for individual clouds
+      }}
+    >
+      {clouds.map((cloud) => (
+        <motion.div
+          key={cloud.id}
+          className="absolute"
+          style={{
+            top: `${cloud.top}%`,
+            width: `${cloud.size}px`,
+            height: `${cloud.size}px`,
+            opacity: 'var(--cloud-opacity)',
+          }}
+          initial={{ x: cloud.startX !== undefined ? `${cloud.startX}vw` : '-100%' }}
+          animate={{ x: '100vw' }}
+          transition={{
+            duration: cloud.duration,
+            delay: cloud.delay,
+            repeat: cloud.repeat,
+            ease: 'linear',
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- decorative pre-optimized webp; next/image adds no value for dozens of animated instances */}
+          <img
+            src={cloud.image}
+            alt=""
+            className="w-full h-full object-contain"
+            draggable={false}
+          />
+        </motion.div>
+      ))}
+    </div>
+  );
+}

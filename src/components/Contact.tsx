@@ -1,110 +1,20 @@
 "use client";
 
-import { useState, useOptimistic, useTransition } from "react";
 import { motion } from "framer-motion";
 import SectionLayout from "@/components/SectionLayout";
 import { useCharacterAnimation } from "@/hooks/useCharacterAnimation";
-import { useWorld3DStore } from "@/store/useWorld3DStore";
-
-type FormStatus = {
-  type: "idle" | "loading" | "success" | "error";
-  message: string;
-};
+import { useContactForm } from "@/hooks/useContactForm";
+import { SECTION_SHOTS } from "@/config/sectionShots";
 
 export default function Contact() {
-  const { playCharacterAnimation } = useWorld3DStore();
-  const [isPending, startTransition] = useTransition();
-  
-  // Use custom animation hook
-  const { containerRef } = useCharacterAnimation({
-    animation: {
-      name: 'typing',
-      loop: true,
-      fadeTime: 0.5,
-      lookAtCamera: true,
-    },
-    camera: {
-      position: { x: 0.5, y: 1, z: 0.75 },
-      lookAt: { x: -1.5, y: 2, z: 0 },
-      duration: 1500,
-    },
-  });
-
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    content: "",
-  });
-  
-  const [status, setStatus] = useState<FormStatus>({
-    type: "idle",
-    message: "",
-  });
-
-  // Optimistic status for immediate UI feedback
-  const [optimisticStatus, setOptimisticStatus] = useOptimistic(
-    status,
-    (_state, newStatus: FormStatus) => newStatus
-  );
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate required fields
-    if (!formData.name.trim() || !formData.content.trim()) {
-      setStatus({
-        type: "error",
-        message: "Please fill in all required fields.",
-      });
-      return;
-    }
-
-    // Optimistically show loading state
-    setOptimisticStatus({ type: "loading", message: "Sending message..." });
-
-    startTransition(async () => {
-      try {
-        const response = await fetch("/api/contact", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          setStatus({
-            type: "success",
-            message: "Message sent successfully! I'll get back to you soon.",
-          });
-          setFormData({ name: "", email: "", content: "" });
-          
-          // Play wave/cheering animation if available
-          playCharacterAnimation("cheering", false);
-        } else {
-          setStatus({
-            type: "error",
-            message: data.error || "Failed to send message. Please try again.",
-          });
-        }
-      } catch (error) {
-        setStatus({
-          type: "error",
-          message: "An error occurred. Please try again later.",
-        });
-      }
-    });
-  };
+  const { containerRef } = useCharacterAnimation(SECTION_SHOTS.contact);
+  const {
+    formData,
+    handleChange,
+    handleSubmit,
+    status: optimisticStatus,
+    isSending,
+  } = useContactForm();
 
   return (
     <SectionLayout
@@ -178,6 +88,8 @@ export default function Contact() {
           {/* Status Message - Using optimistic state */}
           {optimisticStatus.type !== "idle" && (
             <motion.div
+              role={optimisticStatus.type === "error" ? "alert" : "status"}
+              aria-live="polite"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className={`p-4 rounded-lg ${
@@ -195,10 +107,10 @@ export default function Contact() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={optimisticStatus.type === "loading" || isPending}
+            disabled={isSending}
             className="w-full px-6 py-3 bg-foreground text-background font-semibold rounded-lg hover:bg-foreground/90 focus:outline-none focus:ring-2 focus:ring-foreground/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 text-sm sm:text-base"
           >
-            {optimisticStatus.type === "loading" || isPending ? "Sending..." : "Send Message"}
+            {isSending ? "Sending..." : "Send Message"}
           </button>
         </form>
       </motion.div>

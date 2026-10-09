@@ -4,12 +4,22 @@ import nodemailer from "nodemailer";
 // Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Rate limiting map (in-memory for serverless - consider Redis for production)
+// Rate limiting map. NOTE: in-memory state is per-instance on serverless
+// (each cold start / concurrent instance has its own Map), so this is only
+// best-effort — use Upstash Redis / Vercel KV for a real limit in production.
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
 // Simple rate limiter
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
+
+  // Prune expired entries so the map doesn't grow unbounded on long-running servers
+  if (rateLimitMap.size > 1000) {
+    for (const [key, value] of rateLimitMap) {
+      if (now > value.resetTime) rateLimitMap.delete(key);
+    }
+  }
+
   const limit = rateLimitMap.get(ip);
 
   if (!limit || now > limit.resetTime) {
@@ -34,10 +44,35 @@ function sanitizeInput(input: string): string {
     .slice(0, 5000); // Max length
 }
 
+// Strip CR/LF for values interpolated into email headers (Subject, Reply-To)
+// to prevent header injection
+function stripNewlines(input: string): string {
+  return input.replace(/[\r\n]+/g, " ");
+}
+
+// Reuse a single transporter across requests instead of creating (and
+// verifying via an extra SMTP round-trip) a new one per request
+let cachedTransporter: nodemailer.Transporter | null = null;
+function getTransporter(): nodemailer.Transporter {
+  if (!cachedTransporter) {
+    cachedTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+  }
+  return cachedTransporter;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // Get client IP for rate limiting
-    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown";
+    // Get client IP for rate limiting (first hop of x-forwarded-for)
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
 
     // Check rate limit
     if (!checkRateLimit(ip)) {
@@ -49,10 +84,18 @@ export async function POST(request: NextRequest) {
 
     const { name, email, content } = await request.json();
 
-    // Validate required fields
-    if (!name || !content) {
+    // Validate required fields (and types — non-string values would bypass
+    // the length checks and crash sanitizeInput)
+    if (typeof name !== "string" || typeof content !== "string" || !name.trim() || !content.trim()) {
       return NextResponse.json(
         { error: "Name and content are required fields." },
+        { status: 400 }
+      );
+    }
+
+    if (email !== undefined && email !== "" && typeof email !== "string") {
+      return NextResponse.json(
+        { error: "Invalid email format." },
         { status: 400 }
       );
     }
@@ -80,9 +123,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize inputs
-    const sanitizedName = sanitizeInput(name);
-    const sanitizedEmail = email ? sanitizeInput(email) : "";
+    // Sanitize inputs — name/email are interpolated into email headers, so
+    // strip newlines too (defense-in-depth vs header injection)
+    const sanitizedName = stripNewlines(sanitizeInput(name));
+    const sanitizedEmail = email ? stripNewlines(sanitizeInput(email)) : "";
     const sanitizedContent = sanitizeInput(content);
 
     // Check if email credentials are configured
@@ -94,22 +138,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create transporter using Gmail SMTP
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    // Verify transporter configuration
-    await transporter.verify();
+    // Reuse module-level transporter (auth errors are caught at sendMail)
+    const transporter = getTransporter();
 
     // Prepare email content
     const mailOptions = {
       from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_TO || "marcus.cuong.doan@gmail.com",
+      // Fall back to the authenticated account instead of a hardcoded address
+      to: process.env.EMAIL_TO || process.env.EMAIL_USER,
       subject: `Portfolio Contact: Message from ${sanitizedName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

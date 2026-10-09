@@ -1,54 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 /**
- * Custom hook to detect if the viewport width is below a specified breakpoint
- * Optimized with debouncing and matchMedia API for better performance
+ * Custom hook to detect if the viewport width is below a specified breakpoint.
+ * Uses matchMedia via useSyncExternalStore: SSR-safe (false on the server),
+ * updates immediately after hydration, and only re-renders when the media
+ * query actually flips (no resize debouncing needed).
  * @param breakpoint - The width threshold in pixels (default: 640px for mobile)
  * @returns boolean indicating if current viewport is mobile
  */
 export function useIsMobile(breakpoint: number = 640): boolean {
-  // SSR-safe initial state
-  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const query = `(max-width: ${breakpoint - 1}px)`;
 
-  useEffect(() => {
-    // SSR safety check
-    if (typeof window === 'undefined') return;
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      const mediaQuery = window.matchMedia(query);
+      mediaQuery.addEventListener('change', onStoreChange);
+      return () => mediaQuery.removeEventListener('change', onStoreChange);
+    },
+    [query],
+  );
 
-    // Use matchMedia API for better performance
-    const mediaQuery = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
-    
-    // Initial check
-    setIsMobile(mediaQuery.matches);
-
-    // Debounced resize handler
-    let timeoutId: NodeJS.Timeout;
-    const debouncedHandler = (e: MediaQueryListEvent | MediaQueryList) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        setIsMobile(e.matches);
-      }, 150); // 150ms debounce delay
-    };
-
-    // Modern browsers support addEventListener on MediaQueryList
-    // Fallback to deprecated addListener for older browsers
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', debouncedHandler);
-    } else {
-      // @ts-ignore - For older browsers
-      mediaQuery.addListener(debouncedHandler);
-    }
-
-    // Cleanup
-    return () => {
-      clearTimeout(timeoutId);
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', debouncedHandler);
-      } else {
-        // @ts-ignore - For older browsers
-        mediaQuery.removeListener(debouncedHandler);
-      }
-    };
-  }, [breakpoint]);
-
-  return isMobile;
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false, // Server snapshot
+  );
 }

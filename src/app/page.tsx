@@ -4,6 +4,7 @@ import BaseLayout from "@/components/BaseLayout";
 import Home from "@/components/Home";
 import Projects from "@/components/Projects";
 import Contact from "@/components/Contact";
+import LegendsPanel from "@/components/LegendsPanel";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 export default function Page() {
@@ -14,7 +15,7 @@ export default function Page() {
       showNavbar={true}
       cloudOpacity={0.3}
       maxClouds={50}
-      enableCloudControls={true}
+      overlay={<LegendsPanel />}
       className={isMobile ? "" : "snap-y snap-mandatory"}
     >
       {/* Home Section */}

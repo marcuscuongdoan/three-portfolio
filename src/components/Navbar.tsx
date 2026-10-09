@@ -74,6 +74,7 @@ export default function Navbar({ show = false }: NavbarProps) {
 
   return (
     <motion.nav
+      aria-label="Main navigation"
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: show ? 0 : -100, opacity: show ? 1 : 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
@@ -86,6 +87,7 @@ export default function Navbar({ show = false }: NavbarProps) {
               key={item.name}
               href={item.href}
               onClick={(e) => handleClick(e, item)}
+              aria-current={isActive(item) ? "page" : undefined}
               className={`relative px-4 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-300 ${
                 isActive(item)
                   ? "text-white"

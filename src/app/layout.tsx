@@ -8,17 +8,21 @@ const poppins = Poppins({
   weight: ["300", "400", "500", "600", "700"],
 });
 
+// Canonical site URL — override per environment with NEXT_PUBLIC_SITE_URL
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://marcus-three-portfolio.vercel.app";
+
 export const metadata: Metadata = {
   title: "Marcus Portfolio - 3D Character Showcase",
   description: "Explore my interactive 3D portfolio featuring Three.js character animations and web development projects. Built with Next.js and modern web technologies.",
   keywords: ["Marcus", "Portfolio", "Three.js", "3D", "Web Development", "Next.js", "React", "Interactive"],
   authors: [{ name: "Marcus Cuong Doan" }],
   creator: "Marcus Cuong Doan",
-  metadataBase: new URL('https://marcus-three-portfolio.vercel.app'), // Update this with your actual domain
+  metadataBase: new URL(siteUrl),
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://marcus-three-portfolio.vercel.app", // Update this with your actual domain
+    url: siteUrl,
     title: "Marcus Portfolio - 3D Character Showcase",
     description: "Explore my interactive 3D portfolio featuring Three.js character animations and web development projects. Built with Next.js and modern web technologies.",
     siteName: "Marcus Portfolio",

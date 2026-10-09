@@ -1,81 +1,38 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useState, memo } from "react";
 import Image from "next/image";
 import SectionLayout from "@/components/SectionLayout";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useCharacterAnimation } from "@/hooks/useCharacterAnimation";
+import { projects, Project } from "@/data/portfolio";
+import { SECTION_SHOTS } from "@/config/sectionShots";
 
-// Template project data
-const projects = [
-  {
-    id: 1,
-    name: "VGIG Physical Concert",
-    description: "VGIG is an immersive platform that brings fans closer to music and the artists they love through interactive digital experiences.",
-    url: "https://vgig.bw.land",
-    image: "/images/about-vgig.png"
-  },
-  {
-    id: 2,
-    name: "Defind",
-    description: "Track and discover the most profitable crypto wallets and DeFi traders. Analyze wallet performance, find trending tokens, and copy successful trading strategies.",
-    url: "https://defind.info",
-    image: "/images/defind.png"
-  },
-  {
-    id: 3,
-    name: "Desygner Website",
-    description: "Leverage the power of AI and expertly crafted marketing materials and promotional content to fast-track business growth, saving precious time and money.",
-    url: "https://desygner.com",
-    image: "/images/desygner.png"
-  },
-  {
-    id: 4,
-    name: "XLD Finance",
-    description: "High-performance chain for stablecoins, payment, and onchain FX, with the vision of bringing all currencies onchain.",
-    url: "https://central.global",
-    image: "/images/xld.png"
-  },
-  {
-    id: 5,
-    name: "Motion Miracles Website",
-    description: "Game technology studio & agency focused on delivering immersive gaming products and services in blockchain and cross-platform games to our players and clients/partners.",
-    url: "https://www.motionmiracles.com",
-    image: "/images/motion-miracles.png"
-  },
-  {
-    id: 6,
-    name: "Mental Gym Project",
-    description: `We aim to create a safe environment 
-where we can be able to:
-Assist the young generations on 
-alleviate mental health stigma
-Foster individuals' self-expression 
-and self-awareness towards mental 
-well-being`,
-    url: "https://mental-gym.vercel.app",
-    image: "/images/mental-gym.png"
-  },
+
+// Pastel color gradients shared by both card variants
+const pastelGradients = [
+  "linear-gradient(135deg, #FFE5E5 0%, #FFF0F5 100%)", // Soft pink
+  "linear-gradient(135deg, #E5F3FF 0%, #F0F8FF 100%)", // Soft blue
+  "linear-gradient(135deg, #F0E5FF 0%, #F8F0FF 100%)", // Soft lavender
+  "linear-gradient(135deg, #E5FFF0 0%, #F0FFF8 100%)", // Soft mint
+  "linear-gradient(135deg, #FFF5E5 0%, #FFFAF0 100%)", // Soft peach
+  "linear-gradient(135deg, #FFE5F0 0%, #FFF0F8 100%)", // Soft rose
+];
+
+const pastelBorderColors = [
+  "#FFB8C8", // Pink border
+  "#B8D8FF", // Blue border
+  "#D0B8FF", // Lavender border
+  "#B8FFD0", // Mint border
+  "#FFD8B8", // Peach border
+  "#FFB8D8", // Rose border
 ];
 
 export default function Projects() {
   const isMobile = useIsMobile(640);
   
-  // Use custom animation hook
-  const { containerRef, isInView } = useCharacterAnimation({
-    animation: {
-      name: 'walk',
-      loop: true,
-      fadeTime: 0.5,
-      lookAtCamera: true,
-    },
-    camera: {
-      position: { x: 0, y: 1.25, z: 1 },
-      lookAt: { x: 0.5, y: 1.5, z: 0 },
-      duration: 1500,
-    },
-  });
+  const { containerRef, isInView } = useCharacterAnimation(SECTION_SHOTS.projects);
 
   return (
     <SectionLayout
@@ -102,12 +59,8 @@ export default function Projects() {
           // Mobile: Horizontal scroll with snap - 80% width cards with 10% peek
           <div className="w-full overflow-x-auto snap-x snap-mandatory scrollbar-hide px-[10vw]">
             <div className="flex gap-[10vw] pb-4">
-              {projects.map((project, index) => (
-                <MobileProjectBlock
-                  key={`${project.id}-${index}`}
-                  project={project}
-                  index={index}
-                />
+              {projects.map((project) => (
+                <MobileProjectBlock key={project.id} project={project} />
               ))}
             </div>
           </div>
@@ -119,14 +72,8 @@ export default function Projects() {
             transform: "perspective(50vw) rotateY(-30deg) translateX(-15vw) translateZ(20vw)",
           }}>
             <div className="w-full relative flex flex-row-reverse gap-3 items-center">
-              {projects.map((project, index) => (
-                <ProjectBlock
-                  key={`${project.id}-${index}`}
-                  project={project}
-                  index={index}
-                  isInView={isInView}
-                  totalCount={projects.length}
-                />
+              {projects.map((project) => (
+                <ProjectBlock key={project.id} project={project} />
               ))}
             </div>
           </div>
@@ -136,31 +83,11 @@ export default function Projects() {
   );
 }
 
-interface MobileProjectBlockProps {
-  project: {
-    id: number;
-    name: string;
-    description: string;
-    url: string;
-    image: string;
-  };
-  index: number;
+interface ProjectBlockProps {
+  project: Project;
 }
 
-const MobileProjectBlock = memo(function MobileProjectBlock({ project }: MobileProjectBlockProps) {
-  const pastelGradients = [
-    "linear-gradient(135deg, #FFE5E5 0%, #FFF0F5 100%)",
-    "linear-gradient(135deg, #E5F3FF 0%, #F0F8FF 100%)",
-    "linear-gradient(135deg, #F0E5FF 0%, #F8F0FF 100%)",
-    "linear-gradient(135deg, #E5FFF0 0%, #F0FFF8 100%)",
-    "linear-gradient(135deg, #FFF5E5 0%, #FFFAF0 100%)",
-    "linear-gradient(135deg, #FFE5F0 0%, #FFF0F8 100%)",
-  ];
-  
-  const pastelBorderColors = [
-    "#FFB8C8", "#B8D8FF", "#D0B8FF", "#B8FFD0", "#FFD8B8", "#FFB8D8",
-  ];
-  
+const MobileProjectBlock = memo(function MobileProjectBlock({ project }: ProjectBlockProps) {
   const gradientIndex = (project.id - 1) % pastelGradients.length;
   
   return (
@@ -184,8 +111,9 @@ const MobileProjectBlock = memo(function MobileProjectBlock({ project }: MobileP
                 <Image
                   src={project.image}
                   alt={project.name}
-                  width={280}
-                  height={158}
+                  width={800}
+                  height={450}
+                  sizes="80vw"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -218,53 +146,30 @@ const MobileProjectBlock = memo(function MobileProjectBlock({ project }: MobileP
   );
 });
 
-interface ProjectBlockProps {
-  project: {
-    id: number;
-    name: string;
-    description: string;
-    url: string;
-    image: string;
-  };
-  index: number;
-  isInView: boolean;
-  totalCount: number;
-}
-
 const ProjectBlock = memo(function ProjectBlock({ project }: ProjectBlockProps) {
   const [isHovered, setIsHovered] = useState(false);
-  
+  const shouldReduceMotion = useReducedMotion();
+
   // Calculate consistent distance for all items
   // Start from -100vw and end at 100vw, with stagger offset applied to both
   const blockWidth = 500; // Reduced from 500 to create tighter spacing
   const staggerOffset = (project.id - 1) * blockWidth;
-  
-  // Pastel color gradients for each project
-  const pastelGradients = [
-    "linear-gradient(135deg, #FFE5E5 0%, #FFF0F5 100%)", // Soft pink
-    "linear-gradient(135deg, #E5F3FF 0%, #F0F8FF 100%)", // Soft blue
-    "linear-gradient(135deg, #F0E5FF 0%, #F8F0FF 100%)", // Soft lavender
-    "linear-gradient(135deg, #E5FFF0 0%, #F0FFF8 100%)", // Soft mint
-    "linear-gradient(135deg, #FFF5E5 0%, #FFFAF0 100%)", // Soft peach
-    "linear-gradient(135deg, #FFE5F0 0%, #FFF0F8 100%)", // Soft rose
-  ];
-  
-  const pastelBorderColors = [
-    "#FFB8C8", // Pink border
-    "#B8D8FF", // Blue border
-    "#D0B8FF", // Lavender border
-    "#B8FFD0", // Mint border
-    "#FFD8B8", // Peach border
-    "#FFB8D8", // Rose border
-  ];
-  
+
   const gradientIndex = (project.id - 1) % pastelGradients.length;
-  
+
   return (
     <motion.div
       className="relative flex-shrink-0 w-[500px]"
       animate={{
-        x: [`calc(-100vw - ${staggerOffset}px)`, `calc(300vw - ${staggerOffset}px)`],
+        // Respect prefers-reduced-motion: keep cards static instead of marquee
+        ...(shouldReduceMotion
+          ? {}
+          : {
+              x: [
+                `calc(-100vw - ${staggerOffset}px)`,
+                `calc(300vw - ${staggerOffset}px)`,
+              ],
+            }),
         scale: isHovered ? 1.15 : 1,
       }}
       transition={{
@@ -280,6 +185,8 @@ const ProjectBlock = memo(function ProjectBlock({ project }: ProjectBlockProps) 
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setIsHovered(true)}
+      onBlur={() => setIsHovered(false)}
       style={{
         zIndex: isHovered ? 50 : 1,
       }}
@@ -308,8 +215,9 @@ const ProjectBlock = memo(function ProjectBlock({ project }: ProjectBlockProps) 
                   <Image
                     src={project.image}
                     alt={project.name}
-                    width={350}
-                    height={197}
+                    width={800}
+                    height={450}
+                    sizes="500px"
                     className="w-full h-full object-cover"
                   />
                 </div>

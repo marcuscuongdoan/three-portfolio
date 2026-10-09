@@ -1,0 +1,152 @@
+/* League of Legends theme, scoped to /legends/* via .theme-lol */
+
+.theme-lol {
+  --background: #010a13;
+  --foreground: #f0e6d2;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.theme-lol ::selection {
+  background: rgba(200, 170, 110, 0.35);
+  color: #f0e6d2;
+}
+
+/* Gold gradient display text */
+.lol-gold-text {
+  background: linear-gradient(180deg, #f0e6d2 0%, #c8aa6e 55%, #785a28 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Dark panel with a gold gradient border and bright corner brackets */
+.lol-frame {
+  position: relative;
+  background: linear-gradient(180deg, rgba(10, 20, 40, 0.92), rgba(1, 10, 19, 0.92));
+  border: 1px solid transparent;
+  border-image: linear-gradient(180deg, #c8aa6e, #463714) 1;
+  box-shadow: 0 0 0 1px rgba(1, 10, 19, 0.8), 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+.lol-frame::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  --c: #f0e6d2;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / 14px 2px,
+    linear-gradient(var(--c), var(--c)) top left / 2px 14px,
+    linear-gradient(var(--c), var(--c)) top right / 14px 2px,
+    linear-gradient(var(--c), var(--c)) top right / 2px 14px,
+    linear-gradient(var(--c), var(--c)) bottom left / 14px 2px,
+    linear-gradient(var(--c), var(--c)) bottom left / 2px 14px,
+    linear-gradient(var(--c), var(--c)) bottom right / 14px 2px,
+    linear-gradient(var(--c), var(--c)) bottom right / 2px 14px;
+  background-repeat: no-repeat;
+  opacity: 0.7;
+}
+
+/* Client-style buttons */
+.lol-button {
+  position: relative;
+  font-family: var(--font-lol-display), serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #cdbe91;
+  background: #1e2328;
+  border: 2px solid transparent;
+  border-image: linear-gradient(180deg, #c8aa6e, #785a28) 1;
+  transition: color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.lol-button:hover:not(:disabled),
+.lol-button:focus-visible {
+  color: #f0e6d2;
+  background: linear-gradient(180deg, #1e2328, #0a323c);
+  border-image: linear-gradient(180deg, #f0e6d2, #c8aa6e) 1;
+  box-shadow: 0 0 14px rgba(200, 170, 110, 0.35), inset 0 0 12px rgba(10, 200, 185, 0.15);
+  outline: none;
+}
+.lol-button:disabled {
+  color: #5b5a56;
+  border-image: linear-gradient(180deg, #5b5a56, #3c3c41) 1;
+  cursor: not-allowed;
+}
+
+/* Hextech (teal) call-to-action */
+.lol-button-primary {
+  color: #cdfafa;
+  background: linear-gradient(180deg, #0a323c 0%, #005a82 100%);
+  border-image: linear-gradient(180deg, #0ac8b9, #005a82) 1;
+}
+.lol-button-primary:hover:not(:disabled),
+.lol-button-primary:focus-visible {
+  color: #ffffff;
+  background: linear-gradient(180deg, #0397ab 0%, #005a82 100%);
+  border-image: linear-gradient(180deg, #cdfafa, #0ac8b9) 1;
+  box-shadow: 0 0 20px rgba(10, 200, 185, 0.45);
+}
+
+/* Form fields */
+.lol-input {
+  width: 100%;
+  background: rgba(1, 10, 19, 0.85);
+  border: 1px solid #463714;
+  color: #f0e6d2;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.lol-input::placeholder {
+  color: #5b5a56;
+}
+.lol-input:focus {
+  outline: none;
+  border-color: #c8aa6e;
+  box-shadow: 0 0 0 1px rgba(200, 170, 110, 0.4), 0 0 12px rgba(200, 170, 110, 0.2);
+}
+
+/* Rising gold embers (LolBackground) */
+@keyframes lol-ember-rise {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--ember-opacity, 0.8);
+  }
+  100% {
+    transform: translate3d(var(--ember-drift, 20px), -110vh, 0) scale(0.4);
+    opacity: 0;
+  }
+}
+.lol-ember {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 9999px;
+  background: #f0e6d2;
+  box-shadow: 0 0 6px 2px rgba(200, 155, 60, 0.8);
+  animation: lol-ember-rise linear infinite;
+}
+
+@keyframes lol-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.lol-spin-slow {
+  animation: lol-spin 120s linear infinite;
+}
+.lol-spin-slower {
+  animation: lol-spin 200s linear infinite reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lol-ember,
+  .lol-spin-slow,
+  .lol-spin-slower {
+    animation: none;
+  }
+  .lol-ember {
+    display: none;
+  }
+}

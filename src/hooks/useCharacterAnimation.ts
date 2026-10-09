@@ -37,8 +37,20 @@ export function useCharacterAnimation({
   const isInView = useInView(containerRef, { once: false, amount: viewAmount });
   const hasTriggered = useRef(false);
 
+  // Keep latest configs in refs — callers pass fresh object literals every
+  // render, so putting them in the effect deps would retrigger the animation
+  // (and camera tween) on every parent re-render while the section is in view
+  const animationRef = useRef(animation);
+  const cameraRef = useRef(camera);
+  useEffect(() => {
+    animationRef.current = animation;
+    cameraRef.current = camera;
+  });
+
   useEffect(() => {
     if (!triggerOnView || !isInView || !isSpawnSequenceComplete) {
+      // Only reset when actually out of view / not ready, so the animation
+      // re-triggers on the next scroll into view — not on every re-render
       hasTriggered.current = false;
       return;
     }
@@ -47,36 +59,27 @@ export function useCharacterAnimation({
     if (hasTriggered.current) return;
     hasTriggered.current = true;
 
-    // Play animation
+    const anim = animationRef.current;
     playCharacterAnimation(
-      animation.name,
-      animation.loop ?? true,
-      animation.fadeTime ?? 0.5,
-      animation.lookAtCamera ?? true
+      anim.name,
+      anim.loop ?? true,
+      anim.fadeTime ?? 0.5,
+      anim.lookAtCamera ?? true
     );
 
     // Adjust camera if config provided
-    if (camera) {
+    const cam = cameraRef.current;
+    if (cam) {
       adjustCamera({
-        position: camera.position,
-        lookAt: camera.lookAt,
-        duration: camera.duration ?? 1500,
+        position: cam.position,
+        lookAt: cam.lookAt,
+        duration: cam.duration ?? 1500,
       });
     }
-
-    // Reset trigger when leaving view
-    return () => {
-      hasTriggered.current = false;
-    };
   }, [
     isInView,
     triggerOnView,
     isSpawnSequenceComplete,
-    animation.name,
-    animation.loop,
-    animation.fadeTime,
-    animation.lookAtCamera,
-    camera,
     playCharacterAnimation,
     adjustCamera,
   ]);

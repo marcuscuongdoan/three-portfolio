@@ -12,6 +12,8 @@ interface CameraOptions {
 interface World3DState {
   // State
   isSpawnSequenceComplete: boolean;
+  // True while a replacement model (e.g. a skin) is downloading
+  isModelSwapping: boolean;
   
   // Actions
   playCharacterAnimation: (
@@ -22,6 +24,7 @@ interface World3DState {
   ) => boolean;
   adjustCamera: (options: CameraOptions) => void;
   setSpawnSequenceComplete: (isComplete: boolean) => void;
+  setModelSwapping: (isSwapping: boolean) => void;
   
   // Setters for the actual implementation functions
   setPlayCharacterAnimation: (
@@ -37,9 +40,10 @@ interface World3DState {
 
 export const useWorld3DStore = create<World3DState>()(
   devtools(
-    (set, _get) => ({
+    (set) => ({
       // Initial state
       isSpawnSequenceComplete: false,
+      isModelSwapping: false,
       
       // Default implementations (no-ops until set by World3DCanvas)
       playCharacterAnimation: () => {
@@ -54,12 +58,15 @@ export const useWorld3DStore = create<World3DState>()(
       setSpawnSequenceComplete: (isComplete: boolean) =>
         set({ isSpawnSequenceComplete: isComplete }, false, 'setSpawnSequenceComplete'),
       
+      setModelSwapping: (isSwapping: boolean) =>
+        set({ isModelSwapping: isSwapping }, false, 'setModelSwapping'),
+      
       setPlayCharacterAnimation: (fn) =>
         set({ playCharacterAnimation: fn }, false, 'setPlayCharacterAnimation'),
       
       setAdjustCamera: (fn) =>
         set({ adjustCamera: fn }, false, 'setAdjustCamera'),
     }),
-    { name: 'World3DStore' }
+    { name: 'World3DStore', enabled: process.env.NODE_ENV !== 'production' }
   )
 );
