@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Tailwind scans every non-ignored file for class names. public/ holds ~180MB
+   of GLB/FBX/WebM it would read as text — minutes of scanning and an
+   out-of-memory kill on Vercel's build machines — and docs/ only adds junk */
+@source not "../../public";
+@source not "../../docs";
+
 :root {
   --background: #EAE4DC;
   --foreground: #2C2420;
