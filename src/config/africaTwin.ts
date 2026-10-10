@@ -53,6 +53,10 @@ export interface BikePart {
   explode: [number, number, number];
   // Per-node overrides, e.g. front and rear brakes moving in opposite directions
   explodeOverrides?: { nodes: string[]; explode: [number, number, number] }[];
+  // Push while the part is open (default EXPLODE.selectedBoost). Parts split
+  // front/rear stay close to their wheels instead, or the two halves end up
+  // metres apart and too small to see once both are framed
+  focusBoost?: number;
   summary: string;
   specs: [label: string, value: string][];
   notes?: string[];
@@ -65,7 +69,7 @@ export const BIKE_PARTS: BikePart[] = [
     name: "Engine & transmission",
     kicker: "1084 cc parallel twin",
     nodes: ["misc_c*"],
-    explode: [0, -0.32, 0.05],
+    explode: [0, -0.5, 0.05],
     summary:
       "A liquid-cooled, 8-valve Unicam parallel twin with a 270° crank. Higher compression, revised valve timing and an updated intake and exhaust give 7% more torque, with the gains landing low and in the middle of the rev range.",
     specs: [
@@ -103,7 +107,7 @@ export const BIKE_PARTS: BikePart[] = [
     name: "Exhaust",
     kicker: "Updated intake & exhaust",
     nodes: ["misc_b*"],
-    explode: [0.42, -0.06, 0.18],
+    explode: [0.42, -0.24, 0.18],
     summary:
       "The updated intake and exhaust are part of the engine changes that lift torque through the middle of the rev range.",
     specs: [
@@ -156,7 +160,7 @@ export const BIKE_PARTS: BikePart[] = [
     name: "Swingarm & rear shock",
     kicker: "CRF450R-inspired aluminium",
     nodes: ["swingarm*"],
-    explode: [0, -0.22, 0.38],
+    explode: [0, -0.36, 0.38],
     summary:
       "A monoblock aluminium swingarm inspired by the CRF450R, with Pro-Link and a fully adjustable Showa gas-charged shock giving 220 mm of wheel travel.",
     specs: [
@@ -174,7 +178,7 @@ export const BIKE_PARTS: BikePart[] = [
     name: "Front wheel",
     kicker: "21-inch tubeless",
     nodes: ["wheel_lf*"],
-    explode: [0, 0, -0.62],
+    explode: [0, -0.16, -0.62],
     summary:
       "A 21-inch wire-spoke wheel with an aluminium rim, now tubeless for easy roadside repairs.",
     specs: [
@@ -189,7 +193,7 @@ export const BIKE_PARTS: BikePart[] = [
     name: "Rear wheel",
     kicker: "18-inch tubeless",
     nodes: ["wheel_lr*"],
-    explode: [0, 0, 0.68],
+    explode: [0, -0.16, 0.68],
     summary:
       "An 18-inch wire-spoke rear wheel with an aluminium rim, tubeless like the front.",
     specs: [
@@ -201,13 +205,14 @@ export const BIKE_PARTS: BikePart[] = [
   },
   {
     id: "brakes",
+    focusBoost: 0.25,
     name: "Brakes & ABS",
     kicker: "Dual 310 mm discs",
     nodes: ["bikedisc_f*", "bikedisc_r*"],
     explode: [0, 0, 0],
     explodeOverrides: [
-      { nodes: ["bikedisc_f*"], explode: [0, -0.2, -0.92] },
-      { nodes: ["bikedisc_r*"], explode: [0, -0.2, 0.98] },
+      { nodes: ["bikedisc_f*"], explode: [0, -0.34, -0.92] },
+      { nodes: ["bikedisc_r*"], explode: [0, -0.34, 0.98] },
     ],
     summary:
       "Dual 310 mm wave floating discs up front and a 256 mm wave disc at the rear, with 2-channel cornering ABS that can be switched between on- and off-road modes.",
@@ -308,6 +313,7 @@ export const BIKE_PARTS: BikePart[] = [
   },
   {
     id: "lighting",
+    focusBoost: 0.25,
     name: "Lighting & electrics",
     kicker: "Full LED",
     nodes: ["headlight_*", "indicator_*", "taillight_*", "chassis.006", "chassis.007"],
@@ -369,10 +375,106 @@ export const HERO_SPECS: [value: string, label: string][] = [
   ["21″ / 18″", "Tubeless wheels"],
 ];
 
-// Overview framing leaves room for the exploded view, so hovering never has
-// to move the camera (which would shift the hover zone under the cursor)
+/**
+ * How far parts spread. A part sits at `rest + explode × scale × spread`, where
+ * spread is 0 assembled, 1 exploded (click), up to 1 + zoomExtra when zooming
+ * in, and `focusSpread` while a part is open — that part also gets
+ * `selectedBoost` so it pulls clear of the rest.
+ */
+export const EXPLODE = {
+  scale: 1.5,
+  focusSpread: 1.35,
+  selectedBoost: 1.6,
+  // Zooming in spreads the parts: none at zoomStart × the overview distance,
+  // fully exploded at zoomFull ×, then up to 1 + zoomExtra
+  zoomStart: 0.9,
+  zoomFull: 0.4,
+  zoomExtra: 0.5,
+  // The overview camera backs off by this much while exploded
+  explodedDolly: 1.3,
+};
+
+/**
+ * Lights toggle: which meshes glow (only their lens/lamp materials — not the
+ * black housings). The glow is emissive, picked up by the bloom pass.
+ */
+export const BIKE_LIGHTS = {
+  glow: [
+    { nodes: ["headlight_*"], color: "#fff4dc", intensity: 6 },
+    { nodes: ["extralight_*", "twin_touring.001"], color: "#fff0c8", intensity: 5 },
+    { nodes: ["taillight_*"], color: "#ff2424", intensity: 5 },
+  ],
+  lampMaterial: /headlight|lights|foglight|glass/i,
+  // Headlight beams: spotlights on the floor plus a soft visible cone
+  headlights: [
+    [-0.08, 0.45, -0.8],
+    [0.08, 0.45, -0.8],
+  ] as [number, number, number][],
+  beamDirection: [0, -0.22, -1] as [number, number, number],
+};
+
+/**
+ * Ride simulation (assembled only): spinning wheels and discs, exhaust smoke,
+ * dust off the rear tyre and speed streaks on the floor. Positions are in
+ * model space (before the ground lift).
+ */
+// Toward the sun in the ride world (unit vector): the key light moves here,
+// the sky draws the sun here and every shadow in the world falls away from
+// it. Front-right and above the overview camera, like the studio key light
+export const SUN_DIRECTION: [number, number, number] = [0.706, 0.53, -0.471];
+
+export const RIDE = {
+  wheelNodes: ["wheel_lf*", "wheel_lr*"],
+  // Brake meshes that spin with the wheels (the calipers don't)
+  discNodes: ["bikedisc_*"],
+  discMaterial: /discbrake/i,
+  // Wheel spin at full speed, rad/s (kept low enough not to strobe)
+  spin: 11,
+  exhaustOutlet: [0.21, 0.24, 0.96] as [number, number, number],
+  rearContact: [0, -0.56, 0.86] as [number, number, number],
+  // Floor streak speed, m/s
+  streakSpeed: 7,
+};
+
+/**
+ * First-load intro, three front-to-back scan sweeps (seconds from the moment
+ * loading finishes):
+ * 1. scan — the scan edge passes over the bike, leaving a hologram point
+ *    cloud behind it, with laser beams on the edge and digital rain behind;
+ * 2. shape — the next sweep swaps the hologram for the bare shape (untextured
+ *    clay);
+ * 3. texture — the last sweep paints the real materials back on, as the
+ *    studio lights come back up.
+ */
+export const INTRO = {
+  points: 45000,
+  // Model-space Z extent the sweeps run across (front is -Z)
+  zFront: -1.2,
+  zBack: 1.25,
+  scanStart: 0.15,
+  scanEnd: 2.55,
+  shapeStart: 2.85,
+  shapeEnd: 4.2,
+  textureStart: 4.35,
+  textureEnd: 5.7,
+  end: 6.0,
+  // Particles settle into place this fast once the edge passes them, from
+  // this offset (small: they condense rather than fly in)
+  flight: 0.65,
+  fromOffset: [0, 0.12, -0.35] as [number, number, number],
+  // HDR cyan, so the bloom pass makes it glow
+  color: [0.45, 1.0, 0.85] as [number, number, number],
+};
+
 export const AFRICA_TWIN_CAMERA = {
   fov: 35,
   position: [4.5, 1.95, -3.4] as [number, number, number],
   target: [0, 0.75, 0] as [number, number, number],
 };
+
+// Camera-to-target distance of the overview
+export const OVERVIEW_DISTANCE = Math.hypot(
+  AFRICA_TWIN_CAMERA.position[0] - AFRICA_TWIN_CAMERA.target[0],
+  AFRICA_TWIN_CAMERA.position[1] - AFRICA_TWIN_CAMERA.target[1],
+  AFRICA_TWIN_CAMERA.position[2] - AFRICA_TWIN_CAMERA.target[2],
+);

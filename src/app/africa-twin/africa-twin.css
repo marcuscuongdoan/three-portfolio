@@ -13,6 +13,13 @@
   font-family: var(--font-at-display), sans-serif;
 }
 
+/* Fades and un-blurs with the intro (--at-intro: 0 → 1, set per frame on
+   <main>); 1 once the intro is over */
+.at-reveal {
+  opacity: calc(0.08 + 0.92 * var(--at-intro, 1));
+  filter: blur(calc((1 - var(--at-intro, 1)) * 8px));
+}
+
 @keyframes at-panel-in {
   from {
     opacity: 0;
@@ -47,4 +54,32 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(228, 0, 43, 0.55) transparent;
   }
+}
+
+/* Lights on: the studio goes dark, so the page chrome (not the white part
+   panel) switches to light text. Overrides on purpose — this file is
+   unlayered, so it wins over the Tailwind utilities it targets. */
+.at-dark .at-chrome .text-slate-900 {
+  color: #f8fafc;
+}
+.at-dark .at-chrome .text-slate-700,
+.at-dark .at-chrome .text-slate-600 {
+  color: #cbd5e1;
+}
+.at-dark .at-chrome .text-slate-500,
+.at-dark .at-chrome .text-slate-400 {
+  color: #94a3b8;
+}
+.at-dark .at-chrome .bg-white,
+.at-dark .at-chrome .bg-white\/70,
+.at-dark .at-chrome .bg-white\/80 {
+  background: rgba(255, 255, 255, 0.1);
+}
+.at-dark .at-chrome .border-slate-300 {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+/* Active part row stays a solid, readable chip */
+.at-dark .at-chrome .bg-slate-900 {
+  background: #f8fafc;
+  color: #0f172a;
 }
