@@ -1,0 +1,50 @@
+/* Africa Twin page, scoped via .theme-at.
+   This file is unlayered and would override Tailwind utilities, so it only
+   holds things Tailwind can't express: fonts, keyframes, scrollbars. */
+
+.theme-at {
+  --background: #e8eaed;
+  --foreground: #0f172a;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.theme-at .font-at {
+  font-family: var(--font-at-display), sans-serif;
+}
+
+@keyframes at-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.at-panel-enter {
+  animation: at-panel-in 0.4s 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Thin red scrollbars */
+.theme-at ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.theme-at ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.theme-at ::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: rgba(228, 0, 43, 0.55);
+}
+.theme-at ::-webkit-scrollbar-thumb:hover {
+  background: #e4002b;
+}
+@supports not selector(::-webkit-scrollbar) {
+  .theme-at .at-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(228, 0, 43, 0.55) transparent;
+  }
+}
