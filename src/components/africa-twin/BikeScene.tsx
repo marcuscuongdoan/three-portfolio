@@ -6,7 +6,6 @@ import { useFrame, useThree } from "@react-three/fiber";
 import {
   Bvh,
   CameraControls,
-  ContactShadows,
   Environment,
   Lightformer,
 } from "@react-three/drei";
@@ -169,9 +168,8 @@ function CameraRig({
   );
 }
 
-// Contact shadow: just the darkening where the tyres meet the floor
-const SHADOW_OPACITY = 0.3;
-// Cast shadow of the whole bike from the key light
+// Cast shadow of the whole bike from the key light (drei's ContactShadows
+// was dropped: its square plane showed as a lighter tile on the garage floor)
 const CAST_SHADOW_OPACITY = 0.32;
 const DAY = new THREE.Color(STUDIO_COLOR);
 const NIGHT = new THREE.Color("#121419");
@@ -219,7 +217,6 @@ function Studio({
   const floor = useRef<THREE.MeshBasicMaterial>(null);
   const floorMesh = useRef<THREE.Mesh>(null);
   const litFloor = useRef<THREE.Mesh>(null);
-  const shadows = useRef<THREE.Group>(null);
   const shadowLevel = useRef(1);
   const castShadow = useRef<THREE.ShadowMaterial>(null);
   const ambient = useRef<THREE.AmbientLight>(null);
@@ -251,10 +248,6 @@ function Studio({
     );
     // The bike's real shadow still lands on the sand (it receives shadows)
     const studioShadow = shadowLevel.current * (1 - THREE.MathUtils.smoothstep(world, 0, 0.3));
-    const shadowMesh = shadows.current?.children[0] as THREE.Mesh | undefined;
-    const shadowMaterial = shadowMesh?.material as THREE.Material | undefined;
-    if (shadows.current) shadows.current.visible = studioShadow > 0.01;
-    if (shadowMaterial) shadowMaterial.opacity = SHADOW_OPACITY * studioShadow;
     if (castShadow.current) {
       castShadow.current.opacity = CAST_SHADOW_OPACITY * studioShadow;
       castShadow.current.visible = studioShadow > 0.01;
@@ -294,20 +287,13 @@ function Studio({
         <circleGeometry args={[40, 64]} />
         <meshStandardMaterial color="#5a616b" emissive={NIGHT} roughness={0.85} />
       </mesh>
-      {/* Catches the key light's shadow of the whole bike (assembled only) */}
+      {/* Catches the key light's shadow of the whole bike (assembled only).
+          Wider than the garage, so its edge never shows on the garage floor */}
       <mesh rotation-x={-Math.PI / 2} position-y={0.0005} receiveShadow raycast={() => null}>
-        <planeGeometry args={[14, 14]} />
+        <circleGeometry args={[30, 64]} />
         <shadowMaterial ref={castShadow} transparent opacity={CAST_SHADOW_OPACITY} />
       </mesh>
-      <ContactShadows
-        ref={shadows}
-        position-y={0.001}
-        scale={7}
-        far={0.6}
-        blur={2}
-        opacity={SHADOW_OPACITY}
-        resolution={1024}
-      />
+
 
       <ambientLight ref={ambient} intensity={0.35} />
       <directionalLight

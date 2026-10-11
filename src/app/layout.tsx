@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
+import { ANALYTICS_ENABLED, GA_ID, SITE_URL } from "@/config/site";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -8,9 +10,7 @@ const poppins = Poppins({
   weight: ["300", "400", "500", "600", "700"],
 });
 
-// Canonical site URL — override per environment with NEXT_PUBLIC_SITE_URL
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://marcus-three-portfolio.vercel.app";
+const siteUrl = SITE_URL;
 
 export const metadata: Metadata = {
   title: "Marcus Portfolio - 3D Character Showcase",
@@ -72,6 +72,7 @@ export default function RootLayout({
       >
         {children}
       </body>
+      {ANALYTICS_ENABLED && <GoogleAnalytics gaId={GA_ID} />}
     </html>
   );
 }

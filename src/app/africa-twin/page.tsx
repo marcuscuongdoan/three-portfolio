@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { Canvas } from "@react-three/fiber";
 import { useProgress } from "@react-three/drei";
@@ -162,6 +163,18 @@ export default function AfricaTwinPage() {
     if (selected) setSelected(null);
     else if (apart) assemble();
   }, [selected, apart, assemble, handleHoverPart]);
+  // Analytics: one event per part opened (click, list or arrow keys), and per
+  // explode / reassemble (button, click or zoom)
+  useEffect(() => {
+    if (selected) track("part_open", { part: selected });
+  }, [selected]);
+  const wasApart = useRef(false);
+  useEffect(() => {
+    if (apart === wasApart.current) return;
+    wasApart.current = apart;
+    track(apart ? "bike_explode" : "bike_assemble", { via: zoomExploded && !exploded ? "zoom" : "click" });
+  }, [apart, exploded, zoomExploded]);
+
   const step = useCallback((delta: number) => {
     setSelected((current) => {
       const i = BIKE_PARTS.findIndex((p) => p.id === current);
@@ -366,7 +379,10 @@ export default function AfricaTwinPage() {
             {!apart && (
               <button
                 type="button"
-                onClick={() => setLightsOn((on) => !on)}
+                onClick={() => {
+                  track("lights_toggle", { on: !lightsOn });
+                  setLightsOn((on) => !on);
+                }}
                 aria-pressed={lightsOn}
                 aria-label={
                   lightsOn ? "Turn the lights off" : "Turn the lights on"
@@ -401,7 +417,10 @@ export default function AfricaTwinPage() {
             {!apart && (
               <button
                 type="button"
-                onClick={() => setRideOn((on) => !on)}
+                onClick={() => {
+                  track(rideOn ? "ride_stop" : "ride_start", { scene: backdropOn });
+                  setRideOn((on) => !on);
+                }}
                 aria-pressed={rideOn}
                 aria-label={rideOn ? "Stop the ride" : "Simulate riding"}
                 className={`font-at flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors ${
@@ -428,7 +447,10 @@ export default function AfricaTwinPage() {
             {!apart && (
               <button
                 type="button"
-                onClick={() => setBackdropOn((on) => !on)}
+                onClick={() => {
+                  track("scene_toggle", { on: !backdropOn });
+                  setBackdropOn((on) => !on);
+                }}
                 aria-pressed={backdropOn}
                 aria-label={backdropOn ? "Hide the background" : "Show the background"}
                 title={backdropOn ? "Hide the background" : "Show the background"}
@@ -508,7 +530,10 @@ export default function AfricaTwinPage() {
       {intro && (
         <button
           type="button"
-          onClick={() => setIntroSkipped(true)}
+          onClick={() => {
+            track("intro_skip");
+            setIntroSkipped(true);
+          }}
           className="font-at fixed bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-1/2 z-30 -translate-x-1/2 rounded-full border border-[#6fffd2]/50 bg-black/30 px-5 py-1.5 text-sm font-semibold uppercase tracking-widest text-[#bfffea] backdrop-blur transition-colors hover:border-[#6fffd2] hover:text-white"
         >
           Skip intro

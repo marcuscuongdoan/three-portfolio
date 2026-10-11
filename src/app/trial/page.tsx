@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { Canvas } from "@react-three/fiber";
 import { useProgress } from "@react-three/drei";
@@ -129,6 +130,7 @@ export default function TrialPage() {
   }, []);
 
   const handleSelect = useCallback((id: LegendId) => {
+    track("legend_select", { legend: id });
     setHoveredId(null);
     setFocusedId(id);
   }, []);
@@ -207,7 +209,15 @@ export default function TrialPage() {
           {focused ? focused.skin.name : "Choose your legend"}
         </span>
         <div className="flex justify-end">
-          {timeOfDay && <TimeToggle value={timeOfDay} onChange={setTimeOverride} />}
+          {timeOfDay && (
+            <TimeToggle
+              value={timeOfDay}
+              onChange={(v) => {
+                track("time_toggle", { to: v });
+                setTimeOverride(v);
+              }}
+            />
+          )}
         </div>
       </header>
 
@@ -217,7 +227,10 @@ export default function TrialPage() {
             legend={focused}
             skinIndex={skins[focused.id]}
             skinLoading={!!skinLoading[focused.id]}
-            onSkinChange={(index) => setSkins((prev) => ({ ...prev, [focused.id]: index }))}
+            onSkinChange={(index) => {
+              track("skin_select", { legend: focused.id, skin: focused.skins[index]?.label ?? index });
+              setSkins((prev) => ({ ...prev, [focused.id]: index }));
+            }}
           />
           <button
             type="button"
