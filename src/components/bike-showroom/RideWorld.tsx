@@ -6,7 +6,7 @@ import { useFrame } from "@react-three/fiber";
 import { SUN_DIRECTION } from "@/config/bikeShowroom";
 
 // How fast the world streams past at full ride speed, m/s
-const WORLD_SPEED = 7;
+export const WORLD_SPEED = 7;
 
 /**
  * The world streaming past while riding: a looping 160 m route through desert

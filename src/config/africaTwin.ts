@@ -422,6 +422,30 @@ export const AFRICA_TWIN: BikeDefinition = {
     spin: 11,
     exhaustOutlet: [0.21, 0.24, 0.96],
     rearContact: [0, -0.56, 0.86],
+    // Long-travel Showa (230 / 220 mm): a soft, deep sag
+    suspension: {
+      sag: [0.032, 0.028],
+      bump: 0.006,
+      frontAxle: [0, -0.229, -0.935],
+      rearAxle: [0, -0.243, 0.725],
+      // Fork sliders (forks_l003), front fender, caliper, hub
+      unsprung: [
+        "wheel_*",
+        "bikedisc_*",
+        "forks_l",
+        "forks_l001",
+        "forks_l003",
+        "forks_l004",
+        "forks_l005",
+        "forks_l006",
+        "forks_l007",
+        "forks_l008",
+      ],
+      // Front brake line, rear shock
+      stretch: ["forks_l002", "swingarm006"],
+      swingarm: ["swingarm", "swingarm001", "swingarm002", "swingarm003", "swingarm004", "swingarm005"],
+      pivot: [0, -0.12, 0.1],
+    },
   },
   intro: { ...INTRO_TIMING, zFront: -1.2, zBack: 1.25 },
   // 270° parallel twin: uneven 270 / 450° firing — the V-twin-like thump

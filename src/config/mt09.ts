@@ -425,6 +425,33 @@ export const MT09_SP: BikeDefinition = {
     spin: 11,
     exhaustOutlet: [0.24, -0.01, 0.7],
     rearContact: [0, -0.5, 0.6],
+    // Firm, short-travel sport set-up (130 / 117 mm)
+    suspension: {
+      sag: [0.022, 0.02],
+      bump: 0.0042,
+      frontAxle: [0, -0.2, -0.887],
+      rearAxle: [-0.025, -0.185, 0.578],
+      // Inner fork tubes (forks_l001) slide into the gold outer tubes
+      // (forks_u003, sprung); fender, calipers, hub
+      unsprung: [
+        "wheel_*",
+        "bikedisc_*",
+        "misc_f",
+        "forks_l",
+        "forks_l001",
+        "forks_l002",
+        "forks_l004",
+        "forks_l005",
+        "forks_l007",
+        "forks_l008",
+        "forks_l009",
+        "forks_u006",
+      ],
+      // Front brake line
+      stretch: ["forks_l006"],
+      swingarm: ["swingarm*"],
+      pivot: [0, -0.09, 0.03],
+    },
   },
   intro: { ...INTRO_TIMING, zFront: -1.05, zBack: 0.8 },
   // CP3 triple: even firing every 240°, revs high — the crossplane howl

@@ -83,6 +83,30 @@ export interface BikeLights {
   beamDirection: Vec3;
 }
 
+/**
+ * Suspension while riding: the sprung bike (frame, engine, bodywork, rider's
+ * weight) sinks into its sag and rides over the road, while the wheels stay on
+ * it. Every mesh not listed below is sprung.
+ */
+export interface BikeSuspension {
+  // Sag at full ride speed, metres: front, rear
+  sag: [number, number];
+  // Road bumps at full speed, metres
+  bump: number;
+  // Wheel axles (bike space): the wheels stay put, the sprung bike pitches
+  // between them
+  frontAxle: Vec3;
+  rearAxle: Vec3;
+  // Follow the wheels: wheels, discs, calipers, fork sliders, front fender
+  unsprung: string[];
+  // Squash between the two (brake lines, shock): the bottom stays put, the
+  // top follows the sprung bike
+  stretch: string[];
+  // Swing about `pivot` (on the frame) so the rear axle stays put
+  swingarm: string[];
+  pivot: Vec3;
+}
+
 /** Ride simulation: spinning wheels and discs, exhaust smoke, rear-tyre dust. */
 export interface BikeRide {
   wheelNodes: string[];
@@ -94,6 +118,7 @@ export interface BikeRide {
   spin: number;
   exhaustOutlet: Vec3;
   rearContact: Vec3;
+  suspension: BikeSuspension;
 }
 
 /**

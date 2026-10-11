@@ -7,6 +7,7 @@ import { useGLTF } from "@react-three/drei";
 import {
   type BikeDefinition,
   type BikeLivery,
+  type BikeSuspension,
   type DecalFinish,
   type ExplodeSettings,
   type PaintFinish,
@@ -14,6 +15,7 @@ import {
   overviewDistance,
 } from "@/config/bikeShowroom";
 import { useBikeDef } from "@/components/bike-showroom/BikeContext";
+import { WORLD_SPEED } from "@/components/bike-showroom/RideWorld";
 
 type PartId = string;
 
@@ -45,12 +47,61 @@ export interface BikeRuntime {
   root: THREE.Object3D;
 }
 
+// How a node moves with the suspension (see BikeSuspension)
+type SuspensionRole = "sprung" | "unsprung" | "stretch" | "swingarm";
+
 interface NodeState {
   object: THREE.Object3D;
   partId: PartId;
   base: THREE.Vector3;
   explode: THREE.Vector3;
+  role: SuspensionRole;
+  // Stretch nodes: rest bounds (bike space) — bottom and top y, mid z
+  low: number;
+  high: number;
+  midZ: number;
 }
+
+/**
+ * Where the suspension sits this frame: the sprung bike pitched by `pitch`
+ * about the X axis and dropped by `drop`; the swingarm turned by `armAngle`
+ * about its pivot, which has moved (with the frame) to `pivot`.
+ */
+interface SuspensionPose {
+  pitch: number;
+  drop: number;
+  armAngle: number;
+  pivot: THREE.Vector3;
+}
+
+const REST_POSE: SuspensionPose = { pitch: 0, drop: 0, armAngle: 0, pivot: new THREE.Vector3() };
+
+// A bike-space point moved with the sprung bike
+const sprungY = (pose: SuspensionPose, y: number, z: number) =>
+  y * Math.cos(pose.pitch) - z * Math.sin(pose.pitch) + pose.drop;
+const sprungZ = (pose: SuspensionPose, y: number, z: number) =>
+  y * Math.sin(pose.pitch) + z * Math.cos(pose.pitch);
+
+// Angle of a direction in the Y-Z plane; rotation.x by a turns it by -a
+const yzAngle = (y: number, z: number) => Math.atan2(y, z);
+
+/**
+ * The pose for front / rear compression (metres, + = down): the sprung bike
+ * pitches between the axles, and the swingarm swings so the rear axle stays
+ * where it is
+ */
+const suspensionPose = (s: BikeSuspension, front: number, rear: number): SuspensionPose => {
+  const fz = s.frontAxle[2];
+  const [, ry, rz] = s.rearAxle;
+  // Small angles: a point at z drops by drop - z·pitch
+  const pitch = (rear - front) / (rz - fz);
+  const drop = -front + fz * pitch;
+  const pose = { pitch, drop, armAngle: 0, pivot: new THREE.Vector3() };
+  const [px, py, pz] = s.pivot;
+  pose.pivot.set(px, sprungY(pose, py, pz), sprungZ(pose, py, pz));
+  pose.armAngle = yzAngle(ry - py, rz - pz) - yzAngle(ry - pose.pivot.y, rz - pose.pivot.z);
+  return pose;
+};
 
 interface MaterialState {
   material: THREE.Material;
@@ -193,10 +244,41 @@ const setPartOpacity = (states: MaterialState[], fade: number, modeChanged: bool
   });
 };
 
-const placeNodes = (nodes: NodeState[], scale: number, spread: number, boosts: Map<PartId, number>) =>
-  nodes.forEach((n) =>
-    n.object.position.copy(n.base).addScaledVector(n.explode, scale * spread * (boosts.get(n.partId) ?? 1)),
-  );
+// Every node at its explode offset, moved with the suspension. Meshes sit in
+// bike space with no rotation of their own, so a node's transform is the
+// motion itself. `pivot`: the swingarm pivot at rest
+const placeNodes = (
+  nodes: NodeState[],
+  scale: number,
+  spread: number,
+  boosts: Map<PartId, number>,
+  pose: SuspensionPose,
+  pivot: THREE.Vector3,
+) =>
+  nodes.forEach((n) => {
+    const o = n.object;
+    const { x, y, z } = n.base;
+    if (n.role === "sprung") {
+      o.rotation.x = pose.pitch;
+      o.position.set(x, sprungY(pose, y, z), sprungZ(pose, y, z));
+    } else if (n.role === "swingarm") {
+      const c = Math.cos(pose.armAngle);
+      const s = Math.sin(pose.armAngle);
+      const dy = y - pivot.y;
+      const dz = z - pivot.z;
+      o.rotation.x = pose.armAngle;
+      o.position.set(x, pose.pivot.y + dy * c - dz * s, pose.pivot.z + dy * s + dz * c);
+    } else if (n.role === "stretch") {
+      // Squashed from the bottom up to where the sprung bike has its top
+      const squash = (sprungY(pose, n.high, n.midZ) - n.low) / (n.high - n.low);
+      o.scale.y = squash;
+      o.position.set(x, n.low + (y - n.low) * squash, z);
+    } else {
+      // Unsprung: rotation.x belongs to the wheel / disc spin
+      o.position.copy(n.base);
+    }
+    o.position.addScaledVector(n.explode, scale * spread * (boosts.get(n.partId) ?? 1));
+  });
 
 /**
  * How far the parts spread, given the camera's distance to its target: zooming
@@ -214,6 +296,7 @@ export const zoomSpread = (distance: number, overview: number, explode: ExplodeS
  */
 const buildBike = (source: THREE.Object3D, def: BikeDefinition) => {
   const { explode: EXPLODE, lights: BIKE_LIGHTS, ride: RIDE, parts: BIKE_PARTS } = def;
+  const SUSPENSION = RIDE.suspension;
   const root = source.clone(true);
   root.updateMatrixWorld(true);
 
@@ -270,7 +353,23 @@ const buildBike = (source: THREE.Object3D, def: BikeDefinition) => {
 
     const override = part.explodeOverrides?.find((o) => matchesNode(o.nodes, mesh.name));
     const explode = new THREE.Vector3(...(override?.explode ?? part.explode));
-    nodes.push({ object: mesh, partId: part.id, base: mesh.position.clone(), explode });
+    const role: SuspensionRole = matchesNode(SUSPENSION.unsprung, mesh.name)
+      ? "unsprung"
+      : matchesNode(SUSPENSION.stretch, mesh.name)
+        ? "stretch"
+        : matchesNode(SUSPENSION.swingarm, mesh.name)
+          ? "swingarm"
+          : "sprung";
+    nodes.push({
+      object: mesh,
+      partId: part.id,
+      base: mesh.position.clone(),
+      explode,
+      role,
+      low: box.min.y,
+      high: box.max.y,
+      midZ: (box.min.z + box.max.z) / 2,
+    });
 
     // Own material copies per part
     let states = materialsByPart.get(part.id);
@@ -410,7 +509,9 @@ export default function BikeModel({
   const zoomExploded = useRef(false);
   const glowLevel = useRef(0);
   const wheelAngle = useRef(0);
-  const body = useRef<THREE.Group>(null);
+  // The suspension was off rest last frame
+  const suspended = useRef(false);
+  const pivot = useMemo(() => new THREE.Vector3(...def.ride.suspension.pivot), [def]);
 
   useFrame(({ controls, camera }, rawDelta) => {
     const delta = Math.min(rawDelta, 0.1);
@@ -446,19 +547,32 @@ export default function BikeModel({
       boosts.current.set(id, Math.abs(next - goal) < 0.001 ? goal : next);
       moved = true;
     });
-    if (moved) placeNodes(nodes, EXPLODE.scale, spread.current, boosts.current);
+
+    // Suspension: sinks into its sag as the ride picks up and rides the road
+    // bumps — the rear meets each one a wheelbase after the front. One last
+    // pass back at rest once the ride has eased out
+    const ride = rideLevel.current;
+    const sprung = ride > 0 || suspended.current;
+    suspended.current = ride > 0;
+    let pose = REST_POSE;
+    if (ride > 0) {
+      const t = performance.now() / 1000;
+      const s = def.ride.suspension;
+      const lag = (s.rearAxle[2] - s.frontAxle[2]) / (WORLD_SPEED * Math.max(ride, 0.2));
+      const road = (time: number) =>
+        Math.sin(time * 9.1) * 0.5 + Math.sin(time * 15.7 + 1.3) * 0.3 + Math.sin(time * 4.3 + 0.4) * 0.45;
+      // Engine buzz on top
+      const buzz = Math.sin(t * 38) * 0.0012;
+      const front = ride * (s.sag[0] + s.bump * road(t) + buzz);
+      const rear = ride * (s.sag[1] + s.bump * road(t - lag) + buzz);
+      pose = suspensionPose(s, front, rear);
+    }
+    if (moved || sprung) placeNodes(nodes, EXPLODE.scale, spread.current, boosts.current, pose, pivot);
 
     // Ride: wheels roll forward (front is -Z, so the contact patch moves +Z)
-    // and the body shimmies a little on the engine
-    const ride = rideLevel.current;
     if (ride > 0) {
       wheelAngle.current = (wheelAngle.current - def.ride.spin * ride * delta) % (Math.PI * 2);
       spin(spinners, wheelAngle.current);
-    }
-    if (body.current) {
-      const t = performance.now() / 1000;
-      body.current.position.y = ride * (Math.sin(t * 38) * 0.0012 + Math.sin(t * 7.3) * 0.002);
-      body.current.rotation.x = ride * Math.sin(t * 5.1) * 0.0025;
     }
 
     if (repaint.current < 1) {
@@ -487,7 +601,6 @@ export default function BikeModel({
 
   return (
     <group position-y={bike.groundOffset}>
-      <group ref={body}>
       <primitive
         object={root}
         onPointerMove={(e: ThreeEvent<PointerEvent>) => {
@@ -501,7 +614,6 @@ export default function BikeModel({
           if (id) onClickPart(id);
         }}
       />
-      </group>
     </group>
   );
 }
