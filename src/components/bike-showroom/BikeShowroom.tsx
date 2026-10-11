@@ -25,6 +25,27 @@ const readSoundPref = () => {
     return false;
   }
 };
+// The visitor's colour choice per bike (a convenience only)
+const liveryKey = (slug: string) => `bike-showroom-livery:${slug}`;
+const readLivery = (slug: string) => {
+  try {
+    return localStorage.getItem(liveryKey(slug));
+  } catch {
+    return null;
+  }
+};
+const writeLivery = (slug: string, id: string) => {
+  try {
+    localStorage.setItem(liveryKey(slug), id);
+  } catch {
+    // Storage blocked: just don't remember
+  }
+};
+// Swatch fill: the main colour with the others as diagonal bands
+const swatchFill = (colours: string[]) => {
+  const [a, b = a, c = b] = colours;
+  return `linear-gradient(135deg, ${a} 0 52%, ${b} 52% 76%, ${c} 76% 100%)`;
+};
 const writeSoundPref = (on: boolean) => {
   try {
     localStorage.setItem(SOUND_KEY, on ? "1" : "0");
@@ -77,6 +98,19 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
   const riding = rideOn && !apart && !rideHold;
   // Showroom garage / ride scenery behind the bike; off = plain studio
   const [backdropOn, setBackdropOn] = useState(true);
+  // Colour scheme, and whether the colour picker is open
+  const LIVERIES = def.paint.liveries;
+  const [livery, setLivery] = useState(LIVERIES[0]!.id);
+  const [paintOpen, setPaintOpen] = useState(false);
+  const currentLivery = LIVERIES.find((l) => l.id === livery) ?? LIVERIES[0]!;
+  const chooseLivery = useCallback(
+    (id: string) => {
+      setLivery(id);
+      writeLivery(def.slug, id);
+      track("livery_change", { bike: def.slug, livery: id });
+    },
+    [def.slug],
+  );
   // Synthesised sound (intro + engine), off by default
   const [soundOn, setSoundOn] = useState(false);
   const toggleSound = useCallback(() => {
@@ -113,6 +147,10 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
   const [introRunning, setIntroRunning] = useState(true);
   if (!ready && !active && progress >= 100) {
     setReady(true);
+    // The colour picked last visit (client only: storage isn't there on the
+    // server render)
+    const saved = readLivery(def.slug);
+    if (saved && LIVERIES.some((l) => l.id === saved)) setLivery(saved);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setIntroSkipped(true);
   }
   // Phases come from the scene's own clock, so the UI stays in sync with it
@@ -236,6 +274,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
     const onKey = (e: KeyboardEvent) => {
       if (introRef.current) return;
       if (e.key === "Escape") {
+        setPaintOpen(false);
         if (selected) setSelected(null);
         else if (apart) assemble();
       }
@@ -301,6 +340,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
             lightsOn={lightsActive}
             riding={riding}
             backdrop={backdropOn}
+            livery={livery}
             introActive={ready}
             introSkipped={introSkipped}
             introRunning={intro}
@@ -425,7 +465,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
       )}
 
       {/* Parts chips — mobile / tablet */}
-      {!selectedPart && !intro && (
+      {!selectedPart && !intro && !paintOpen && (
         <nav
           aria-label="Parts"
           className="at-chrome at-scroll fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-20 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden"
@@ -443,10 +483,59 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
         </nav>
       )}
 
+      {/* Colour picker: the maker's current colours */}
+      {paintOpen && !apart && !selectedPart && !intro && (
+        <div
+          id="bike-colours"
+          role="group"
+          aria-label="Colours"
+          className="at-chrome at-panel fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-30 mx-auto max-w-md rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-xl backdrop-blur md:inset-x-auto md:bottom-auto md:right-8 md:top-1/2 md:w-72 md:-translate-y-1/2"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="font-at text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+              Colour
+            </p>
+            <a
+              href={def.sources[def.paint.source]?.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[10px] text-slate-400 underline"
+            >
+              {def.brand} colours
+            </a>
+          </div>
+          <p className="font-at mt-1 text-xl font-bold uppercase italic leading-tight text-slate-900">
+            {currentLivery.name}
+          </p>
+          <p className="h-4 text-xs text-slate-500">{currentLivery.note ?? `${def.title} ${def.year}`}</p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {LIVERIES.map((l) => {
+              const isActive = l.id === livery;
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => chooseLivery(l.id)}
+                  aria-pressed={isActive}
+                  aria-label={l.note ? `${l.name} (${l.note})` : l.name}
+                  title={l.note ? `${l.name} · ${l.note}` : l.name}
+                  // An outline, not a ring: its offset gap stays see-through
+                  // on both the light and the dark panel
+                  className={`h-10 w-10 rounded-full ring-1 ring-slate-400/50 transition-transform hover:scale-110 ${
+                    isActive ? "outline-2 outline-offset-2 outline-[var(--bk-accent)]" : ""
+                  }`}
+                  style={{ background: swatchFill(l.swatch) }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Bottom bar: hint + explode toggle */}
       {!selectedPart && !intro && (
         <div className="at-chrome fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] z-20 flex flex-col items-center gap-2 px-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <button
               type="button"
               onClick={() => (apart ? assemble() : explode())}
@@ -470,7 +559,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
                 aria-label={
                   lightsOn ? "Turn the lights off" : "Turn the lights on"
                 }
-                className={`font-at flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors ${
+                className={`font-at flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-bold uppercase tracking-widest transition-colors sm:px-4 ${
                   lightsOn
                     ? "border-[#ffd27a] bg-[#ffd27a] text-[#1a1408] shadow-[0_0_18px_rgba(255,210,122,0.6)]"
                     : "border-slate-300 bg-white/80 text-slate-700 hover:border-slate-900"
@@ -494,7 +583,8 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
                     opacity={lightsOn ? 1 : 0.35}
                   />
                 </svg>
-                Lights
+                {/* Icon only on phones: five buttons have to fit one row */}
+                <span className="hidden sm:inline">Lights</span>
               </button>
             )}
             {!apart && (
@@ -506,7 +596,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
                 }}
                 aria-pressed={rideOn}
                 aria-label={rideOn ? "Stop the ride" : "Simulate riding"}
-                className={`font-at flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold uppercase tracking-widest transition-colors ${
+                className={`font-at flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-bold uppercase tracking-widest transition-colors sm:px-4 ${
                   rideOn
                     ? "border-[var(--bk-accent-2)] bg-[var(--bk-accent-2)] text-white shadow-[0_0_18px_var(--bk-accent-2-glow)]"
                     : "border-slate-300 bg-white/80 text-slate-700 hover:border-slate-900"
@@ -524,7 +614,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
                   <circle cx="12" cy="12" r="9" />
                   <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4" opacity={0.6} />
                 </svg>
-                {rideOn ? "Stop" : "Ride"}
+                <span className="hidden sm:inline">{rideOn ? "Stop" : "Ride"}</span>
               </button>
             )}
             {!apart && (
@@ -557,8 +647,29 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
                   <path d="M3 16l5-5 4 4 3-3 6 6" />
                   {!backdropOn && <path d="M4 4l16 16" />}
                 </svg>
-                {/* Icon only on phones: four buttons have to fit one row */}
                 <span className="hidden md:inline">Scene</span>
+              </button>
+            )}
+            {!apart && (
+              <button
+                type="button"
+                onClick={() => setPaintOpen((open) => !open)}
+                aria-expanded={paintOpen}
+                aria-controls="bike-colours"
+                aria-label={`Colour: ${currentLivery.name}`}
+                title={`Colour: ${currentLivery.name}`}
+                className={`font-at flex items-center gap-2 rounded-full border px-2.5 py-2 text-sm font-bold uppercase tracking-widest transition-colors md:px-4 ${
+                  paintOpen
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-300 bg-white/80 text-slate-700 hover:border-slate-900"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className="h-4 w-4 rounded-full ring-1 ring-black/20"
+                  style={{ background: swatchFill(currentLivery.swatch) }}
+                />
+                <span className="hidden md:inline">Colour</span>
               </button>
             )}
             <p className="hidden text-xs uppercase tracking-widest text-slate-500 md:block">

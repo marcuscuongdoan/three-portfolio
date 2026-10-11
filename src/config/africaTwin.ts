@@ -351,6 +351,69 @@ export const AFRICA_TWIN: BikeDefinition = {
     ],
     beamDirection: [0, -0.22, -1],
   },
+  // The three 2026 colours of the Africa Twin (Honda UK colour picker)
+  paint: {
+    source: "specs",
+    slots: {
+      body: { label: "Bodywork", materials: ["vehicle_generic_smallspecmap [PRIMARY]"] },
+      // Shroud and fender bands
+      bands: { label: "Bands", materials: ["remap [SECONDARY]"] },
+      // Tank top, shroud and fender flashes
+      flashes: { label: "Flashes", materials: ["Material.002", "Material.003"] },
+      graphics: {
+        label: "Graphics",
+        materials: [
+          "Material.001",
+          "Material.004",
+          "Material.005",
+          "Material.006",
+          "Material.007",
+          "Material.008",
+        ],
+        decal: true,
+      },
+      rims: { label: "Rims", materials: ["gold.003"] },
+    },
+    liveries: [
+      {
+        id: "grand-prix-red",
+        name: "Grand Prix Red",
+        swatch: ["#c8102e", "#141518", "#ffffff"],
+        paint: {
+          body: { color: "#c8102e", metalness: 0.35, roughness: 0.16, clearcoat: 1 },
+          bands: { color: "#141518", roughness: 0.4 },
+          flashes: { color: "#18191c", roughness: 0.3, clearcoat: 1 },
+          graphics: { ink: "#0f1012", light: "#ffffff" },
+          rims: { color: "#1a1a1c", metalness: 0.9, roughness: 0.3 },
+        },
+      },
+      {
+        id: "matt-ballistic-black",
+        name: "Matt Ballistic Black Metallic",
+        swatch: ["#2a2b2f", "#121315", "#b08a52"],
+        paint: {
+          body: { color: "#2a2b2f", metalness: 0.6, roughness: 0.55, clearcoat: 0 },
+          bands: { color: "#121315", roughness: 0.6 },
+          flashes: { color: "#34363b", roughness: 0.55, clearcoat: 0 },
+          graphics: { ink: "#a17b45", light: "#d9b57a" },
+          rims: { color: "#1a1a1c", metalness: 0.9, roughness: 0.3 },
+        },
+      },
+      {
+        id: "pearl-glare-white",
+        name: "Pearl Glare White Tricolour",
+        swatch: ["#eef0f3", "#1f4fc4", "#d0142c"],
+        paint: {
+          body: { color: "#eef0f3", metalness: 0.15, roughness: 0.14, clearcoat: 1 },
+          bands: { color: "#d0142c", roughness: 0.3 },
+          // Pearl Hawkseye Blue
+          flashes: { color: "#1f4fc4", metalness: 0.3, roughness: 0.2, clearcoat: 1 },
+          graphics: { ink: "#1b2f80", light: "#ffffff" },
+          rims: { color: "#c9a04e", metalness: 0.95, roughness: 0.25 },
+        },
+      },
+    ],
+  },
   ride: {
     wheelNodes: ["wheel_lf*", "wheel_lr*"],
     // The calipers share the disc nodes but don't spin

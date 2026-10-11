@@ -27,6 +27,10 @@ const SOURCES = {
     label: "Yamaha Motor Europe (UK) — MT-09 SP features & specifications",
     url: "https://www.yamaha-motor.eu/gb/en/motorcycles/hyper-naked/pdp/mt-09-sp/",
   },
+  mt09: {
+    label: "Yamaha Motor Europe (UK) — MT-09 colours",
+    url: "https://www.yamaha-motor.eu/gb/en/motorcycles/hyper-naked/pdp/mt-09/",
+  },
 };
 
 const PARTS: BikePart[] = [
@@ -352,6 +356,67 @@ export const MT09_SP: BikeDefinition = {
       [0.07, 0.33, -0.78],
     ],
     beamDirection: [0, -0.22, -1],
+  },
+  // The SP is sold in Icon Performance only; the other three are the current
+  // MT-09 colours (Yamaha UK), shown on the SP's gold forks
+  paint: {
+    source: "specs",
+    slots: {
+      tank: { label: "Tank & tail", materials: ["vehicle_generic_smallspecmap [PRIMARY]"] },
+      // Tank sides, scoops and front fender
+      panels: { label: "Panels", materials: ["vehicle_generic_smallspecmap [SECONDARY]"] },
+      pinstripes: { label: "Pinstripes", materials: ["blue"] },
+      rims: { label: "Rims", materials: ["rim", "Material.018", "Material.019"] },
+    },
+    liveries: [
+      {
+        id: "icon-performance",
+        name: "Icon Performance",
+        swatch: ["#a9adb3", "#16171a", "#2a3fd0"],
+        paint: {
+          tank: { color: "#a9adb3", metalness: 0.85, roughness: 0.22, clearcoat: 1 },
+          panels: { color: "#16171a", metalness: 0.5, roughness: 0.35, clearcoat: 1 },
+          pinstripes: { color: "#2a3fd0", roughness: 0.3 },
+          rims: { color: "#2236c4", metalness: 0.55, roughness: 0.3 },
+        },
+      },
+      {
+        id: "ice-storm",
+        name: "Ice Storm",
+        note: "MT-09 colour",
+        swatch: ["#c3c7cc", "#1b1d21", "#2fa8e6"],
+        paint: {
+          tank: { color: "#c3c7cc", metalness: 0.3, roughness: 0.45, clearcoat: 0.3 },
+          panels: { color: "#1b1d21", metalness: 0.4, roughness: 0.4, clearcoat: 1 },
+          pinstripes: { color: "#2fa8e6", roughness: 0.3 },
+          rims: { color: "#2a9fe0", metalness: 0.5, roughness: 0.3 },
+        },
+      },
+      {
+        id: "tech-black",
+        name: "Tech Black",
+        note: "MT-09 colour",
+        swatch: ["#1c1d20", "#0e0f11", "#55595f"],
+        paint: {
+          tank: { color: "#1c1d20", metalness: 0.6, roughness: 0.25, clearcoat: 1 },
+          panels: { color: "#0e0f11", metalness: 0.3, roughness: 0.5, clearcoat: 0.4 },
+          pinstripes: { color: "#55595f", metalness: 0.6, roughness: 0.3 },
+          rims: { color: "#121214", metalness: 0.8, roughness: 0.3 },
+        },
+      },
+      {
+        id: "icon-blue",
+        name: "Icon Blue",
+        note: "MT-09 colour",
+        swatch: ["#1a3fd6", "#272d45", "#0f1012"],
+        paint: {
+          tank: { color: "#1a3fd6", metalness: 0.45, roughness: 0.18, clearcoat: 1 },
+          panels: { color: "#272d45", metalness: 0.5, roughness: 0.4, clearcoat: 0.6 },
+          pinstripes: { color: "#0f1012", roughness: 0.3 },
+          rims: { color: "#1c3ccc", metalness: 0.55, roughness: 0.3 },
+        },
+      },
+    ],
   },
   ride: {
     wheelNodes: ["wheel_lf*", "wheel_lr*"],

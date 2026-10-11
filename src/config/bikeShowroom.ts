@@ -166,6 +166,55 @@ export interface BikeTheme {
   garage: "light" | "dark";
 }
 
+/**
+ * Colour schemes. The GLB ships one paint job; a slot is a set of its
+ * materials (by exact material name) that get repainted together — "body"
+ * for the main panels, "rims" for the wheel rims, and so on.
+ *
+ * A paint slot takes a plain finish. A decal slot holds the graphics
+ * (transparent textures with black and white artwork): the texture's dark
+ * ink is redrawn in `ink`, the white in `light`, keeping its transparency.
+ */
+export interface PaintFinish {
+  color: string;
+  metalness?: number;
+  roughness?: number;
+  // Clear lacquer over the paint (physical materials only): 0 for matt
+  clearcoat?: number;
+}
+
+export interface DecalFinish {
+  ink: string;
+  light: string;
+}
+
+export interface PaintSlot {
+  label: string;
+  materials: string[];
+  decal?: boolean;
+}
+
+export interface BikeLivery {
+  id: string;
+  // Official colour name, as the maker sells it
+  name: string;
+  // Model / variant it's sold on, when it isn't the bike on the page itself
+  note?: string;
+  // Swatch colours, main colour first
+  swatch: string[];
+  // Finish per slot id (every slot): PaintFinish for paint, DecalFinish for
+  // decal slots
+  paint: Record<string, PaintFinish | DecalFinish>;
+}
+
+export interface BikePaint {
+  slots: Record<string, PaintSlot>;
+  // The first one is the default
+  liveries: BikeLivery[];
+  // Where the colour names come from: key into BikeDefinition.sources
+  source: string;
+}
+
 export interface BikeDefinition {
   // Route, analytics and storage key
   slug: string;
@@ -187,6 +236,7 @@ export interface BikeDefinition {
   heroSpecs: [value: string, label: string][];
   explode: ExplodeSettings;
   lights: BikeLights;
+  paint: BikePaint;
   ride: BikeRide;
   intro: IntroSettings;
   // Synthesised engine for the ride (see showroomAudio.ts)

@@ -460,6 +460,8 @@ interface BikeSceneProps {
   riding: boolean;
   // Garage when parked, ride world when riding; off = plain studio
   backdrop: boolean;
+  // Colour scheme id (def.paint.liveries)
+  livery: string;
   // Loading is done: start the hologram intro
   introActive: boolean;
   // Jump straight to the end of the intro
@@ -485,6 +487,7 @@ export default function BikeScene({
   lightsOn,
   riding,
   backdrop,
+  livery,
   introActive,
   introSkipped,
   introRunning,
@@ -640,6 +643,7 @@ export default function BikeScene({
         <Bvh firstHitOnly>
           <BikeModel
             exploded={exploded}
+            livery={livery}
             lightsLevel={lightsLevel}
             rideLevel={rideLevel}
             selected={selected}

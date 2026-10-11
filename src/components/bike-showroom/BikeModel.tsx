@@ -6,7 +6,10 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import {
   type BikeDefinition,
+  type BikeLivery,
+  type DecalFinish,
   type ExplodeSettings,
+  type PaintFinish,
   matchesNode,
   overviewDistance,
 } from "@/config/bikeShowroom";
@@ -60,6 +63,113 @@ interface GlowState {
   intensity: number;
 }
 
+interface PaintLook {
+  color: THREE.Color;
+  metalness: number;
+  roughness: number;
+  clearcoat: number;
+}
+
+// One repaintable material copy (see BikeDefinition.paint)
+interface PaintState {
+  material: THREE.MeshPhysicalMaterial;
+  slot: string;
+  // Decal slot: the GLB's own artwork, recoloured per livery
+  decal: THREE.Texture | null;
+  // Repaint in progress: from the look it had to the livery's
+  from: PaintLook;
+  to: PaintLook;
+  toMap: THREE.Texture | null;
+}
+
+// How long a repaint takes, seconds
+const REPAINT_TIME = 0.7;
+
+const lookOf = (m: THREE.MeshPhysicalMaterial): PaintLook => ({
+  color: m.color.clone(),
+  metalness: m.metalness,
+  roughness: m.roughness,
+  clearcoat: m.clearcoat ?? 0,
+});
+
+// sRGB bytes of a colour (THREE.Color holds linear values)
+const hexBytes = (c: THREE.Color) => {
+  const hex = c.getHex();
+  return [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255] as const;
+};
+
+// Decal artwork recoloured: dark ink → `ink`, white → `light`, alpha kept.
+// Cached per source texture and colour pair
+const decalCache = new WeakMap<THREE.Texture, Map<string, THREE.Texture>>();
+const recolourDecal = (source: THREE.Texture, { ink, light }: DecalFinish) => {
+  let byColour = decalCache.get(source);
+  if (!byColour) {
+    byColour = new Map();
+    decalCache.set(source, byColour);
+  }
+  const key = `${ink}|${light}`;
+  const cached = byColour.get(key);
+  if (cached) return cached;
+
+  const image = source.image as CanvasImageSource & { width: number; height: number };
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.drawImage(image, 0, 0);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = pixels.data;
+  const a = new THREE.Color(ink);
+  const b = new THREE.Color(light);
+  const [ar, ag, ab] = hexBytes(a);
+  const [br, bg, bb] = hexBytes(b);
+  for (let i = 0; i < d.length; i += 4) {
+    const l = (d[i]! + d[i + 1]! + d[i + 2]!) / 765;
+    d[i] = ar + (br - ar) * l;
+    d[i + 1] = ag + (bg - ag) * l;
+    d[i + 2] = ab + (bb - ab) * l;
+  }
+  ctx.putImageData(pixels, 0, 0);
+  const texture = source.clone();
+  texture.image = canvas;
+  texture.needsUpdate = true;
+  byColour.set(key, texture);
+  return texture;
+};
+
+// Set every material's target look for a livery; instant skips the fade
+const startRepaint = (paints: PaintState[], livery: BikeLivery, instant: boolean) =>
+  paints.forEach((p) => {
+    const finish = livery.paint[p.slot];
+    if (!finish) return;
+    p.from = lookOf(p.material);
+    if (p.decal) {
+      p.to = p.from;
+      p.toMap = recolourDecal(p.decal, finish as DecalFinish);
+    } else {
+      const f = finish as PaintFinish;
+      p.to = {
+        color: new THREE.Color(f.color),
+        metalness: f.metalness ?? 0,
+        roughness: f.roughness ?? 0.4,
+        clearcoat: f.clearcoat ?? 0,
+      };
+    }
+    if (instant) setRepaint([p], 1);
+  });
+
+// Blend each material t (0..1) of the way through its repaint. Decals swap
+// halfway, behind the fade of everything around them
+const setRepaint = (paints: PaintState[], t: number) =>
+  paints.forEach((p) => {
+    const m = p.material;
+    m.color.lerpColors(p.from.color, p.to.color, t);
+    m.metalness = THREE.MathUtils.lerp(p.from.metalness, p.to.metalness, t);
+    m.roughness = THREE.MathUtils.lerp(p.from.roughness, p.to.roughness, t);
+    if (m.isMeshPhysicalMaterial) m.clearcoat = THREE.MathUtils.lerp(p.from.clearcoat, p.to.clearcoat, t);
+    if (p.toMap && t >= 0.5 && m.map !== p.toMap) m.map = p.toMap;
+  });
+
 // Wheels and brake discs spin about their own local X axis
 const spin = (spinners: THREE.Object3D[], angle: number) =>
   spinners.forEach((o) => {
@@ -110,6 +220,8 @@ const buildBike = (source: THREE.Object3D, def: BikeDefinition) => {
   const introPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), -100);
   const nodes: NodeState[] = [];
   const glows: GlowState[] = [];
+  const paints: PaintState[] = [];
+  const paintSlots = Object.entries(def.paint.slots);
   const spinners: THREE.Object3D[] = [];
   const materialsByPart = new Map<PartId, MaterialState[]>();
   const parts = new Map<PartId, PartRuntime>();
@@ -185,6 +297,20 @@ const buildBike = (source: THREE.Object3D, def: BikeDefinition) => {
           lamp.emissiveIntensity = 0;
           glows.push({ material: lamp, intensity: glow.intensity });
         }
+        // Repaintable: the copy of a material in a paint slot
+        const slot = paintSlots.find(([, s]) => s.materials.includes(material.name));
+        const paint = copy as THREE.MeshPhysicalMaterial;
+        if (slot && paint.isMeshStandardMaterial) {
+          const look = lookOf(paint);
+          paints.push({
+            material: paint,
+            slot: slot[0],
+            decal: slot[1].decal ? paint.map : null,
+            from: look,
+            to: look,
+            toMap: null,
+          });
+        }
       }
       return copy;
     };
@@ -222,11 +348,13 @@ const buildBike = (source: THREE.Object3D, def: BikeDefinition) => {
   });
 
   const bike: BikeRuntime = { parts, groundOffset: -restBox.min.y, introPlane, root };
-  return { root, nodes, glows, spinners, materialsByPart, bike };
+  return { root, nodes, glows, spinners, paints, materialsByPart, bike };
 };
 
 interface BikeModelProps {
   exploded: boolean;
+  // Colour scheme (an id from def.paint.liveries)
+  livery: string;
   // 0 = lights off, 1 = on (eased by the scene)
   lightsLevel: React.RefObject<number>;
   // 0..1 ride speed (eased by the scene)
@@ -242,6 +370,7 @@ interface BikeModelProps {
 
 export default function BikeModel({
   exploded,
+  livery,
   lightsLevel,
   rideLevel,
   selected,
@@ -254,12 +383,24 @@ export default function BikeModel({
   const { explode: EXPLODE } = def;
   const overview = overviewDistance(def.camera);
   const { scene } = useGLTF(def.model);
-  const { root, nodes, glows, spinners, materialsByPart, bike } = useMemo(
+  const { root, nodes, glows, spinners, paints, materialsByPart, bike } = useMemo(
     () => buildBike(scene, def),
     [scene, def],
   );
 
   useEffect(() => onReady(bike), [bike, onReady]);
+
+  // Repaint on a livery change: a short fade, instant on a fresh bike
+  const repaint = useRef(1);
+  const painted = useRef<typeof paints | null>(null);
+  useEffect(() => {
+    const scheme = def.paint.liveries.find((l) => l.id === livery) ?? def.paint.liveries[0];
+    if (!scheme) return;
+    const fresh = painted.current !== paints;
+    painted.current = paints;
+    startRepaint(paints, scheme, fresh);
+    repaint.current = fresh ? 1 : 0;
+  }, [paints, livery, def]);
 
   // Spread of the parts (see EXPLODE) and the selected part's extra push
   const spread = useRef(0);
@@ -318,6 +459,11 @@ export default function BikeModel({
       const t = performance.now() / 1000;
       body.current.position.y = ride * (Math.sin(t * 38) * 0.0012 + Math.sin(t * 7.3) * 0.002);
       body.current.rotation.x = ride * Math.sin(t * 5.1) * 0.0025;
+    }
+
+    if (repaint.current < 1) {
+      repaint.current = Math.min(1, repaint.current + delta / REPAINT_TIME);
+      setRepaint(paints, THREE.MathUtils.smootherstep(repaint.current, 0, 1));
     }
 
     if (glowLevel.current !== lightsLevel.current) {

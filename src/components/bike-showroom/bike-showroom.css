@@ -112,6 +112,7 @@
 .bk-dark .at-panel .text-slate-400 {
   color: #94a3b8;
 }
+.bk-dark .at-panel.border-slate-200,
 .bk-dark .at-panel .border-slate-200,
 .bk-dark .at-panel .border-slate-100,
 .bk-dark .at-panel .divide-slate-100 > * {

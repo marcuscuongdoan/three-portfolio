@@ -46,6 +46,15 @@ export default function ShowroomLayout({
             </li>
           ))}
         </ul>
+        <h3>Colours</h3>
+        <ul>
+          {bike.paint.liveries.map((l) => (
+            <li key={l.id}>
+              {l.name}
+              {l.note && ` (${l.note})`}
+            </li>
+          ))}
+        </ul>
         {bike.parts.map((part) => (
           <article key={part.id}>
             <h3>
