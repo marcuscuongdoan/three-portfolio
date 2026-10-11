@@ -4,8 +4,9 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { MeshSurfaceSampler } from "three/examples/jsm/math/MeshSurfaceSampler.js";
-import type { BikeRuntime } from "@/components/africa-twin/BikeModel";
-import { INTRO } from "@/config/africaTwin";
+import type { BikeRuntime } from "@/components/bike-showroom/BikeModel";
+import type { IntroSettings } from "@/config/bikeShowroom";
+import { useBikeDef } from "@/components/bike-showroom/BikeContext";
 
 // Mutating objects that came in through props / memos lives outside the
 // component (the React Compiler forbids it inline)
@@ -18,11 +19,11 @@ const setOpacity = (material: THREE.Material, opacity: number) => {
 
 // Before a sweep starts its edge parks in front of the bike (nothing
 // revealed); after it ends, behind it (everything revealed)
-const HIDDEN_Z = INTRO.zFront - 1;
-const sweepZ = (t: number, start: number, end: number) => {
-  if (t < start) return HIDDEN_Z;
+const hiddenZ = (intro: IntroSettings) => intro.zFront - 1;
+const sweepZ = (intro: IntroSettings, t: number, start: number, end: number) => {
+  if (t < start) return hiddenZ(intro);
   const k = THREE.MathUtils.smoothstep(t, start, end);
-  return THREE.MathUtils.lerp(INTRO.zFront - 0.1, INTRO.zBack + 0.1, k);
+  return THREE.MathUtils.lerp(intro.zFront - 0.1, intro.zBack + 0.1, k);
 };
 
 const pointsVertex = /* glsl */ `
@@ -80,7 +81,7 @@ const UP = new THREE.Vector3(0, 1, 0);
  * hologram point cloud — each point appears as the scan edge passes its Z —
  * and lists every mesh with its bike-space matrix for the clay copy.
  */
-const buildIntro = (bike: BikeRuntime) => {
+const buildIntro = (bike: BikeRuntime, INTRO: IntroSettings) => {
   const meshes = [...bike.parts.values()].flatMap((p) => p.meshes).filter((m) => m.visible);
   bike.root.updateMatrixWorld(true);
   const toRoot = bike.root.matrixWorld.clone().invert();
@@ -149,7 +150,9 @@ export default function HologramIntro({
   bike: BikeRuntime;
   clock: React.RefObject<number>;
 }) {
-  const { cloud, clay } = useMemo(() => buildIntro(bike), [bike]);
+  const { intro: INTRO } = useBikeDef();
+  const HIDDEN_Z = hiddenZ(INTRO);
+  const { cloud, clay } = useMemo(() => buildIntro(bike, INTRO), [bike, INTRO]);
 
   // Clay shows between the two sweeps: in front of the shape edge (z below
   // it) and behind the texture edge (z above it)
@@ -158,7 +161,7 @@ export default function HologramIntro({
       shape: new THREE.Plane(new THREE.Vector3(0, 0, -1), HIDDEN_Z),
       texture: new THREE.Plane(new THREE.Vector3(0, 0, 1), -HIDDEN_Z),
     }),
-    [],
+    [HIDDEN_Z],
   );
   const clayMaterial = useMemo(
     () =>
@@ -181,7 +184,7 @@ export default function HologramIntro({
       uFade: { value: 1 },
       uColor: { value: new THREE.Color(...INTRO.color) },
     }),
-    [],
+    [INTRO, HIDDEN_Z],
   );
 
   const group = useRef<THREE.Group>(null);
@@ -221,8 +224,8 @@ export default function HologramIntro({
     }
     group.current.visible = true;
 
-    const shapeZ = sweepZ(t, INTRO.shapeStart, INTRO.shapeEnd);
-    const textureZ = sweepZ(t, INTRO.textureStart, INTRO.textureEnd);
+    const shapeZ = sweepZ(INTRO, t, INTRO.shapeStart, INTRO.shapeEnd);
+    const textureZ = sweepZ(INTRO, t, INTRO.textureStart, INTRO.textureEnd);
     setPlaneConstant(clayPlanes.shape, shapeZ);
     setPlaneConstant(clayPlanes.texture, -textureZ);
     setPlaneConstant(bike.introPlane, t < INTRO.textureStart ? -100 : textureZ);
@@ -235,7 +238,7 @@ export default function HologramIntro({
     // Lasers converge on whichever sweep edge is running
     const scanZ =
       t < INTRO.shapeStart
-        ? sweepZ(t, INTRO.scanStart, INTRO.scanEnd)
+        ? sweepZ(INTRO, t, INTRO.scanStart, INTRO.scanEnd)
         : t < INTRO.textureStart
           ? shapeZ
           : textureZ;

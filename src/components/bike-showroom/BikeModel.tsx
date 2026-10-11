@@ -5,16 +5,14 @@ import * as THREE from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import {
-  AFRICA_TWIN_MODEL,
-  BIKE_LIGHTS,
-  BIKE_PARTS,
-  EXPLODE,
-  HIDDEN_NODES,
+  type BikeDefinition,
+  type ExplodeSettings,
   matchesNode,
-  OVERVIEW_DISTANCE,
-  PartId,
-  RIDE,
-} from "@/config/africaTwin";
+  overviewDistance,
+} from "@/config/bikeShowroom";
+import { useBikeDef } from "@/components/bike-showroom/BikeContext";
+
+type PartId = string;
 
 // Opacity of the other parts while one is selected
 const DIMMED_OPACITY = 0.14;
@@ -85,11 +83,9 @@ const setPartOpacity = (states: MaterialState[], fade: number, modeChanged: bool
   });
 };
 
-const placeNodes = (nodes: NodeState[], spread: number, boosts: Map<PartId, number>) =>
+const placeNodes = (nodes: NodeState[], scale: number, spread: number, boosts: Map<PartId, number>) =>
   nodes.forEach((n) =>
-    n.object.position
-      .copy(n.base)
-      .addScaledVector(n.explode, EXPLODE.scale * spread * (boosts.get(n.partId) ?? 1)),
+    n.object.position.copy(n.base).addScaledVector(n.explode, scale * spread * (boosts.get(n.partId) ?? 1)),
   );
 
 /**
@@ -97,12 +93,8 @@ const placeNodes = (nodes: NodeState[], spread: number, boosts: Map<PartId, numb
  * in from the overview spreads them, from nothing at zoomStart to fully
  * exploded at zoomFull — then on up to 1 + zoomExtra
  */
-export const zoomSpread = (distance: number) =>
-  THREE.MathUtils.smoothstep(
-    -distance,
-    -OVERVIEW_DISTANCE * EXPLODE.zoomStart,
-    -OVERVIEW_DISTANCE * EXPLODE.zoomFull,
-  );
+export const zoomSpread = (distance: number, overview: number, explode: ExplodeSettings) =>
+  THREE.MathUtils.smoothstep(-distance, -overview * explode.zoomStart, -overview * explode.zoomFull);
 
 /**
  * Builds the interactive bike from a fresh clone of the GLB: groups meshes into
@@ -110,7 +102,8 @@ export const zoomSpread = (distance: number) =>
  * shared across parts in the source file, and parts fade individually), and
  * records the rest position + explode offset of every node.
  */
-const buildBike = (source: THREE.Object3D) => {
+const buildBike = (source: THREE.Object3D, def: BikeDefinition) => {
+  const { explode: EXPLODE, lights: BIKE_LIGHTS, ride: RIDE, parts: BIKE_PARTS } = def;
   const root = source.clone(true);
   root.updateMatrixWorld(true);
 
@@ -125,7 +118,7 @@ const buildBike = (source: THREE.Object3D) => {
 
   root.traverse((child) => {
     const mesh = child as THREE.Mesh;
-    if (matchesNode(HIDDEN_NODES, child.name)) {
+    if (matchesNode(def.hiddenNodes, child.name)) {
       child.visible = false;
       return;
     }
@@ -150,7 +143,10 @@ const buildBike = (source: THREE.Object3D) => {
     // geometry is shared with the cached GLB) to spin them in place
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
     if (matchesNode(RIDE.wheelNodes, mesh.name)) spinners.push(mesh);
-    else if (matchesNode(RIDE.discNodes, mesh.name) && RIDE.discMaterial.test(material?.name ?? "")) {
+    else if (
+      matchesNode(RIDE.discNodes, mesh.name) &&
+      (!RIDE.discMaterial || RIDE.discMaterial.test(material?.name ?? ""))
+    ) {
       const geometry = mesh.geometry.clone();
       geometry.computeBoundingBox();
       const center = geometry.boundingBox!.getCenter(new THREE.Vector3());
@@ -214,7 +210,7 @@ const buildBike = (source: THREE.Object3D) => {
     runtime.focusBox.union(box.clone().translate(focusOffset));
   });
 
-  if (unmatched.length) console.warn("Africa Twin: meshes without a part", unmatched);
+  if (unmatched.length) console.warn(`${def.title}: meshes without a part`, unmatched);
 
   parts.forEach((runtime) => {
     const box = new THREE.Box3();
@@ -254,10 +250,13 @@ export default function BikeModel({
   onHoverPart,
   onClickPart,
 }: BikeModelProps) {
-  const { scene } = useGLTF(AFRICA_TWIN_MODEL);
+  const def = useBikeDef();
+  const { explode: EXPLODE } = def;
+  const overview = overviewDistance(def.camera);
+  const { scene } = useGLTF(def.model);
   const { root, nodes, glows, spinners, materialsByPart, bike } = useMemo(
-    () => buildBike(scene),
-    [scene],
+    () => buildBike(scene, def),
+    [scene, def],
   );
 
   useEffect(() => onReady(bike), [bike, onReady]);
@@ -280,7 +279,7 @@ export default function BikeModel({
     const distance =
       (controls as unknown as { distance?: number } | null)?.distance ??
       camera.position.length();
-    const zoom = zoomSpread(distance);
+    const zoom = zoomSpread(distance, overview, EXPLODE);
     const target = selected
       ? EXPLODE.focusSpread
       : Math.max(exploded ? 1 : 0, zoom) * (1 + EXPLODE.zoomExtra * zoom);
@@ -299,20 +298,20 @@ export default function BikeModel({
     }
     materialsByPart.forEach((_, id) => {
       const goal =
-        id === selected ? (BIKE_PARTS.find((p) => p.id === id)?.focusBoost ?? EXPLODE.selectedBoost) : 1;
+        id === selected ? (def.parts.find((p) => p.id === id)?.focusBoost ?? EXPLODE.selectedBoost) : 1;
       const prev = boosts.current.get(id) ?? 1;
       if (prev === goal) return;
       const next = THREE.MathUtils.damp(prev, goal, 4.5, delta);
       boosts.current.set(id, Math.abs(next - goal) < 0.001 ? goal : next);
       moved = true;
     });
-    if (moved) placeNodes(nodes, spread.current, boosts.current);
+    if (moved) placeNodes(nodes, EXPLODE.scale, spread.current, boosts.current);
 
     // Ride: wheels roll forward (front is -Z, so the contact patch moves +Z)
     // and the body shimmies a little on the engine
     const ride = rideLevel.current;
     if (ride > 0) {
-      wheelAngle.current = (wheelAngle.current - RIDE.spin * ride * delta) % (Math.PI * 2);
+      wheelAngle.current = (wheelAngle.current - def.ride.spin * ride * delta) % (Math.PI * 2);
       spin(spinners, wheelAngle.current);
     }
     if (body.current) {
@@ -360,5 +359,3 @@ export default function BikeModel({
     </group>
   );
 }
-
-useGLTF.preload(AFRICA_TWIN_MODEL);

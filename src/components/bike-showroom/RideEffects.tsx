@@ -3,8 +3,8 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { RIDE } from "@/config/africaTwin";
-import RideWorld from "@/components/africa-twin/RideWorld";
+import RideWorld from "@/components/bike-showroom/RideWorld";
+import { useBikeDef } from "@/components/bike-showroom/BikeContext";
 
 const SMOKE_COUNT = 36;
 const DUST_COUNT = 28;
@@ -153,8 +153,9 @@ export default function RideEffects({
   rideLevel: React.RefObject<number>;
   lightsLevel: React.RefObject<number>;
 }) {
-  const [ex, ey, ez] = RIDE.exhaustOutlet;
-  const [rx, ry, rz] = RIDE.rearContact;
+  const { ride } = useBikeDef();
+  const [ex, ey, ez] = ride.exhaustOutlet;
+  const [rx, ry, rz] = ride.rearContact;
   return (
     <>
       <group position-y={groundOffset}>

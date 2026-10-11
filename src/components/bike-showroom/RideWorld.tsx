@@ -3,7 +3,10 @@
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { RIDE, SUN_DIRECTION } from "@/config/africaTwin";
+import { SUN_DIRECTION } from "@/config/bikeShowroom";
+
+// How fast the world streams past at full ride speed, m/s
+const WORLD_SPEED = 7;
 
 /**
  * The world streaming past while riding: a looping 160 m route through desert
@@ -605,7 +608,7 @@ export default function RideWorld({
     // Everything rises out of the floor as the ride starts
     world.current.scale.y = Math.max(grow, 0.001);
 
-    travelled.current += RIDE.streakSpeed * ride * delta;
+    travelled.current += WORLD_SPEED * ride * delta;
     const d = travelled.current;
 
     tiles.forEach((tile, i) => {

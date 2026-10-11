@@ -16,8 +16,77 @@ import { useFrame } from "@react-three/fiber";
 
 const ROOM = 11; // half size, metres
 const HEIGHT = 5.2;
-const CYAN = "#8eeaff"; // pale ice accent; the room itself is white
-const UI = "#1597c4"; // screen graphics
+/**
+ * Two finishes: "light" — white panels with pale ice LEDs (Africa Twin);
+ * "dark" — graphite panels with blue LEDs and amber accents (MT-09's
+ * "Dark Side of Japan"). The glow values feed emissive maps: a soft uplift
+ * everywhere, LEDs at full.
+ */
+const PALETTES = {
+  light: {
+    wall: "#eef0f3",
+    seam: "rgba(0,0,0,0.1)",
+    seamH: "rgba(0,0,0,0.07)",
+    band: "#dde1e6",
+    led: "#ffffff",
+    glowUplift: "#1c1f22",
+    glowBand: "#101214",
+    glowLed: "#e6fbff",
+    wallGlow: 1.6,
+    screen: "#f3f8fb",
+    ui: "#1597c4",
+    uiSoft: "rgba(21,151,196,",
+    screenText: "#1d2a33",
+    screenSub: "rgba(40,70,90,0.75)",
+    trace: "#ff3b5c",
+    floor: "#e3e6ea",
+    speckDark: "rgba(0,0,0,0.03)",
+    speckLight: "rgba(255,255,255,0.05)",
+    ceiling: "#f1f3f6",
+    ceilingGlow: 0.06,
+    // Reflections on the floor: the studio's own environment
+    floorEnv: null as string | null,
+    frame: "#d9dde2",
+    body: "#f4f6f8",
+    trim: "#b8bec6",
+    accent: "#8eeaff",
+    panel: "#f2fbff",
+    warm: "#ff2b48",
+  },
+  dark: {
+    wall: "#262a31",
+    seam: "rgba(0,0,0,0.35)",
+    seamH: "rgba(0,0,0,0.25)",
+    band: "#1a1d22",
+    led: "#9fb6ff",
+    glowUplift: "#0b0c0e",
+    glowBand: "#000000",
+    glowLed: "#3f6cff",
+    wallGlow: 1.6,
+    screen: "#080d1a",
+    ui: "#4d7bff",
+    uiSoft: "rgba(77,123,255,",
+    screenText: "#eef2ff",
+    screenSub: "rgba(200,212,255,0.7)",
+    trace: "#ffb020",
+    floor: "#22252a",
+    speckDark: "rgba(0,0,0,0.12)",
+    speckLight: "rgba(255,255,255,0.03)",
+    ceiling: "#1b1e23",
+    ceilingGlow: 0.02,
+    // A flat dark reflection instead of the studio's: its bright light
+    // panels would turn a glossy dark floor pale grey (the scene environment
+    // overrides envMapIntensity, so it takes a map of its own)
+    floorEnv: "#2a2e36" as string | null,
+    frame: "#33373e",
+    body: "#2a2e35",
+    trim: "#4a505a",
+    accent: "#2f5bff",
+    panel: "#e3e9ff",
+    warm: "#ffae1a",
+  },
+};
+type Palette = (typeof PALETTES)["light"];
 
 const rand = (seed: number) => {
   const x = Math.sin(seed * 9301 + 49297) * 233280;
@@ -39,34 +108,35 @@ const canvasTexture = (w: number, h: number, draw: (ctx: CanvasRenderingContext2
 // Wall panel layout (512 × 256 px tile = 5.5 m × 5.2 m): panel seams, a lower
 // band and an LED line above it. Drawn twice — the colour map and the glow
 // map (a soft uplift everywhere so the room reads bright, LEDs at full)
-const drawWall = (ctx: CanvasRenderingContext2D, glow: boolean) => {
-  ctx.fillStyle = glow ? "#1c1f22" : "#eef0f3";
+const drawWall = (ctx: CanvasRenderingContext2D, p: Palette, glow: boolean) => {
+  ctx.fillStyle = glow ? p.glowUplift : p.wall;
   ctx.fillRect(0, 0, 512, 256);
   for (let x = 0; x < 512; x += 128) {
-    ctx.fillStyle = glow ? "#000" : "rgba(0,0,0,0.1)";
+    ctx.fillStyle = glow ? "#000" : p.seam;
     ctx.fillRect(x, 0, 2, 256);
   }
   for (let y = 0; y < 200; y += 64) {
-    ctx.fillStyle = glow ? "#000" : "rgba(0,0,0,0.07)";
+    ctx.fillStyle = glow ? "#000" : p.seamH;
     ctx.fillRect(0, y, 512, 2);
   }
   // Lower band
-  ctx.fillStyle = glow ? "#101214" : "#dde1e6";
+  ctx.fillStyle = glow ? p.glowBand : p.band;
   ctx.fillRect(0, 214, 512, 42);
   // LED seam + a thinner one under the ceiling
-  ctx.fillStyle = glow ? "#e6fbff" : "#ffffff";
+  ctx.fillStyle = glow ? p.glowLed : p.led;
   ctx.fillRect(0, 208, 512, 4);
   ctx.fillRect(0, 8, 512, 2);
 };
-const makeWallTexture = () => canvasTexture(512, 256, (ctx) => drawWall(ctx, false));
-const makeWallGlowTexture = () => canvasTexture(512, 256, (ctx) => drawWall(ctx, true));
+const makeWallTexture = (p: Palette) => canvasTexture(512, 256, (ctx) => drawWall(ctx, p, false));
+const makeWallGlowTexture = (p: Palette) => canvasTexture(512, 256, (ctx) => drawWall(ctx, p, true));
 
-// Spec screen: white glass with a blue wireframe grid, gauges and readouts
-const makeScreenTexture = (seed: number) =>
+// Spec screen: glass with a wireframe grid, the bike's name, gauges and readouts
+const makeScreenTexture = (p: Palette, title: string, line: string, seed: number) =>
   canvasTexture(512, 288, (ctx) => {
-    ctx.fillStyle = "#f3f8fb";
+    const UI = p.ui;
+    ctx.fillStyle = p.screen;
     ctx.fillRect(0, 0, 512, 288);
-    ctx.strokeStyle = "rgba(21,151,196,0.12)";
+    ctx.strokeStyle = p.uiSoft + "0.12)";
     ctx.lineWidth = 1;
     for (let x = 0; x < 512; x += 24) {
       ctx.beginPath();
@@ -82,13 +152,13 @@ const makeScreenTexture = (seed: number) =>
     }
     ctx.fillStyle = UI;
     ctx.font = "bold 22px sans-serif";
-    ctx.fillText("CRF1100L  AFRICA TWIN", 22, 38);
+    ctx.fillText(title, 22, 38);
     ctx.font = "13px monospace";
-    ctx.fillStyle = "rgba(40,70,90,0.75)";
-    ctx.fillText("1084cc  PARALLEL TWIN  ·  102 PS  ·  105 Nm", 22, 60);
+    ctx.fillStyle = p.screenSub;
+    ctx.fillText(line, 22, 60);
     // Gauge
     ctx.lineWidth = 8;
-    ctx.strokeStyle = "rgba(21,151,196,0.18)";
+    ctx.strokeStyle = p.uiSoft + "0.18)";
     ctx.beginPath();
     ctx.arc(110, 170, 60, Math.PI * 0.75, Math.PI * 2.25);
     ctx.stroke();
@@ -97,16 +167,16 @@ const makeScreenTexture = (seed: number) =>
     ctx.arc(110, 170, 60, Math.PI * 0.75, Math.PI * (0.75 + 1.5 * (0.55 + rand(seed) * 0.35)));
     ctx.stroke();
     ctx.font = "bold 28px sans-serif";
-    ctx.fillStyle = "#1d2a33";
+    ctx.fillStyle = p.screenText;
     ctx.fillText(String(60 + Math.floor(rand(seed + 1) * 40)) + "%", 82, 180);
     // Bars
     for (let i = 0; i < 6; i++) {
       const h = 30 + rand(seed + i * 3) * 90;
-      ctx.fillStyle = i % 2 ? "rgba(21,151,196,0.45)" : UI;
+      ctx.fillStyle = i % 2 ? p.uiSoft + "0.45)" : UI;
       ctx.fillRect(220 + i * 22, 240 - h, 14, h);
     }
     // Line trace
-    ctx.strokeStyle = "#ff3b5c";
+    ctx.strokeStyle = p.trace;
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let x = 0; x <= 130; x += 5) {
@@ -115,7 +185,7 @@ const makeScreenTexture = (seed: number) =>
       else ctx.lineTo(370 + x, y);
     }
     ctx.stroke();
-    ctx.strokeStyle = "rgba(21,151,196,0.5)";
+    ctx.strokeStyle = p.uiSoft + "0.5)";
     ctx.strokeRect(362, 120, 140, 130);
     ctx.fillStyle = UI;
     ctx.fillRect(0, 280, 512, 3);
@@ -123,15 +193,32 @@ const makeScreenTexture = (seed: number) =>
 
 // Seamless glossy light epoxy floor (fine speckle only — joint lines read
 // as a tiled grid around the bike)
-const makeFloorTexture = () =>
+const makeFloorTexture = (p: Palette) =>
   canvasTexture(1024, 1024, (ctx) => {
-    ctx.fillStyle = "#e3e6ea";
+    ctx.fillStyle = p.floor;
     ctx.fillRect(0, 0, 1024, 1024);
     for (let i = 0; i < 6000; i++) {
-      ctx.fillStyle = rand(i) > 0.5 ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.05)";
+      ctx.fillStyle = rand(i) > 0.5 ? p.speckDark : p.speckLight;
       ctx.fillRect(rand(i + 1e4) * 1024, rand(i + 2e4) * 1024, 2, 2);
     }
   });
+
+// Uniform cube map: a flat-coloured reflection
+const makeFlatEnv = (color: string) => {
+  const faces = Array.from({ length: 6 }, () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 4;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 4, 4);
+    return canvas;
+  });
+  // Canvases work as cube faces; the typings only list images
+  const texture = new THREE.CubeTexture(faces as unknown as HTMLImageElement[]);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+};
 
 // Fades: every garage material is ours, so fading them is safe
 const setLevel = (materials: THREE.Material[], level: number) =>
@@ -144,29 +231,37 @@ const setGlow = (material: THREE.MeshStandardMaterial, intensity: number) => {
 };
 
 export default function Garage({
+  palette,
+  screenTitle,
+  screenLine,
   show,
   lightsLevel,
   levelRef,
   worldLevel,
 }: {
+  palette: keyof typeof PALETTES;
+  // Text on the spec screens
+  screenTitle: string;
+  screenLine: string;
   show: boolean;
   lightsLevel: React.RefObject<number>;
   // Out: this fade (0..1). In: the ride world's, which must be gone first
   levelRef: React.RefObject<number>;
   worldLevel: React.RefObject<number>;
 }) {
+  const p = PALETTES[palette];
   const textures = useMemo(() => {
-    const wall = makeWallTexture();
-    const wallGlow = makeWallGlowTexture();
+    const wall = makeWallTexture(p);
+    const wallGlow = makeWallGlowTexture(p);
     wall.repeat.set(4, 1);
     wallGlow.repeat.set(4, 1);
     return {
       wall,
       wallGlow,
-      screens: [0, 1, 2].map(makeScreenTexture),
-      floor: makeFloorTexture(),
+      screens: [0, 1, 2].map((seed) => makeScreenTexture(p, screenTitle, screenLine, seed)),
+      floor: makeFloorTexture(p),
     };
-  }, []);
+  }, [p, screenTitle, screenLine]);
 
   const materials = useMemo(() => {
     const std = (p: THREE.MeshStandardMaterialParameters) => new THREE.MeshStandardMaterial({ roughness: 0.6, ...p });
@@ -176,22 +271,27 @@ export default function Garage({
         map: textures.wall,
         emissive: new THREE.Color("#ffffff"),
         emissiveMap: textures.wallGlow,
-        emissiveIntensity: 1.6,
+        emissiveIntensity: p.wallGlow,
         roughness: 0.35,
       }),
-      ceiling: std({ color: "#f1f3f6", emissive: new THREE.Color("#ffffff"), emissiveIntensity: 0.06 }),
+      ceiling: std({ color: p.ceiling, emissive: new THREE.Color("#ffffff"), emissiveIntensity: p.ceilingGlow }),
       screens: textures.screens.map((map) =>
         std({ map, emissive: new THREE.Color("#ffffff"), emissiveMap: map, emissiveIntensity: 0.2, roughness: 0.15 }),
       ),
-      frame: std({ color: "#d9dde2", metalness: 0.6, roughness: 0.25 }),
-      white: std({ color: "#f4f6f8", roughness: 0.25, metalness: 0.1 }),
-      graphite: std({ color: "#b8bec6", metalness: 0.5, roughness: 0.3 }),
-      floor: std({ map: textures.floor, roughness: 0.18, metalness: 0.1 }),
-      panel: led("#f2fbff"),
-      cyan: led(CYAN),
-      red: led("#ff2b48"),
+      frame: std({ color: p.frame, metalness: 0.6, roughness: 0.25 }),
+      white: std({ color: p.body, roughness: 0.25, metalness: 0.1 }),
+      graphite: std({ color: p.trim, metalness: 0.5, roughness: 0.3 }),
+      floor: std({
+        map: textures.floor,
+        roughness: 0.18,
+        metalness: 0.1,
+        envMap: p.floorEnv ? makeFlatEnv(p.floorEnv) : null,
+      }),
+      panel: led(p.panel),
+      cyan: led(p.accent),
+      red: led(p.warm),
     };
-  }, [textures]);
+  }, [textures, p]);
   const all = useMemo(
     () => Object.values(materials).flatMap((m) => (Array.isArray(m) ? m : [m])),
     [materials],
@@ -217,8 +317,8 @@ export default function Garage({
     // Bike lights on: the room's own uplift dims (night mood) while the LEDs
     // brighten and push past the bloom threshold
     const lights = lightsLevel.current;
-    setGlow(materials.wall, 1.6 * (1 - lights * 0.6));
-    setGlow(materials.ceiling, 0.06 * (1 - lights));
+    setGlow(materials.wall, p.wallGlow * (1 - lights * 0.6));
+    setGlow(materials.ceiling, p.ceilingGlow * (1 - lights));
     setGlow(materials.panel, 3 + lights * 0.6);
     setGlow(materials.cyan, (3 + lights * 1.2) * (0.9 + Math.sin(clock.elapsedTime * 1.6) * 0.1));
     setGlow(materials.red, 2.6 + lights * 0.8);

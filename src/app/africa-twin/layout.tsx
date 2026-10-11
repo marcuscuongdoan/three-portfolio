@@ -1,16 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed } from "next/font/google";
-import { BIKE_PARTS, HERO_SPECS, SOURCES } from "@/config/africaTwin";
+import ShowroomLayout from "@/components/bike-showroom/ShowroomLayout";
+import { AFRICA_TWIN } from "@/config/africaTwin";
 import { SITE_URL } from "@/config/site";
-import "./africa-twin.css";
-
-// Condensed display face for the moto look; exposed through the `font-at` class
-const barlow = Barlow_Condensed({
-  variable: "--font-at-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  style: ["normal", "italic"],
-});
 
 const PATH = "/africa-twin";
 const TITLE = "Honda CRF1100L Africa Twin — Interactive 3D Exploded View";
@@ -85,57 +76,13 @@ const jsonLd = {
       torque: { "@type": "QuantitativeValue", value: 112, unitCode: "NU" },
     },
   },
-  isBasedOn: Object.values(SOURCES).map((s) => s.url),
+  isBasedOn: Object.values(AFRICA_TWIN.sources).map((s) => s.url),
 };
 
 export default function AfricaTwinLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${barlow.variable} theme-at`}>
-      <script
-        type="application/ld+json"
-        // Static, built from our own config: safe to inline. `<` escaped so
-        // no string in it can close the script tag
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
-      />
+    <ShowroomLayout bike={AFRICA_TWIN} jsonLd={jsonLd}>
       {children}
-      {/* The 3D view is canvas-only: the same content as text, for search
-          engines and screen readers (visually hidden) */}
-      <section className="sr-only" aria-label="Honda CRF1100L Africa Twin parts and specifications">
-        <h2>Honda CRF1100L Africa Twin at a glance</h2>
-        <ul>
-          {HERO_SPECS.map(([value, label]) => (
-            <li key={label}>
-              {value} — {label}
-            </li>
-          ))}
-        </ul>
-        {BIKE_PARTS.map((part) => (
-          <article key={part.id}>
-            <h3>
-              {part.name}: {part.kicker}
-            </h3>
-            <p>{part.summary}</p>
-            <dl>
-              {part.specs.map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </article>
-        ))}
-        <p>
-          Specifications from{" "}
-          {Object.values(SOURCES).map((s, i) => (
-            <span key={s.url}>
-              {i > 0 && " and "}
-              <a href={s.url}>{s.label}</a>
-            </span>
-          ))}
-          . Fan project, not affiliated with Honda.
-        </p>
-      </section>
-    </div>
+    </ShowroomLayout>
   );
 }

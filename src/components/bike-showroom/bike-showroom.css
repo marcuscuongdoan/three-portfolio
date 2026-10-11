@@ -1,12 +1,21 @@
-/* Africa Twin page, scoped via .theme-at.
+/* Bike showroom pages (/africa-twin, /mt-09), scoped via .theme-at.
    This file is unlayered and would override Tailwind utilities, so it only
-   holds things Tailwind can't express: fonts, keyframes, scrollbars. */
+   holds things Tailwind can't express: fonts, keyframes, scrollbars, theme
+   overrides. Each page sets the --bk-* colours from its BikeTheme (see
+   showroomThemeStyle). */
 
 .theme-at {
-  --background: #e8eaed;
+  --background: var(--bk-day, #e8eaed);
   --foreground: #0f172a;
+  --bk-accent-light: color-mix(in srgb, var(--bk-accent) 65%, white);
+  --bk-accent-soft: color-mix(in srgb, var(--bk-accent) 55%, transparent);
+  --bk-accent-2-glow: color-mix(in srgb, var(--bk-accent-2) 45%, transparent);
   color: var(--foreground);
   background: var(--background);
+}
+.theme-at.bk-dark {
+  --background: var(--bk-night);
+  --foreground: #f8fafc;
 }
 
 .theme-at .font-at {
@@ -34,7 +43,7 @@
   animation: at-panel-in 0.4s 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* Thin red scrollbars */
+/* Thin accent-coloured scrollbars */
 .theme-at ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -44,15 +53,15 @@
 }
 .theme-at ::-webkit-scrollbar-thumb {
   border-radius: 6px;
-  background: rgba(228, 0, 43, 0.55);
+  background: var(--bk-accent-soft);
 }
 .theme-at ::-webkit-scrollbar-thumb:hover {
-  background: #e4002b;
+  background: var(--bk-accent);
 }
 @supports not selector(::-webkit-scrollbar) {
   .theme-at .at-scroll {
     scrollbar-width: thin;
-    scrollbar-color: rgba(228, 0, 43, 0.55) transparent;
+    scrollbar-color: var(--bk-accent-soft) transparent;
   }
 }
 
@@ -70,10 +79,12 @@
 .at-dark .at-chrome .text-slate-400 {
   color: #94a3b8;
 }
+/* Dark glass, so the labels stay readable over bright LEDs behind them */
 .at-dark .at-chrome .bg-white,
 .at-dark .at-chrome .bg-white\/70,
 .at-dark .at-chrome .bg-white\/80 {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(12, 14, 18, 0.72);
+  backdrop-filter: blur(8px);
 }
 .at-dark .at-chrome .border-slate-300 {
   border-color: rgba(255, 255, 255, 0.25);
@@ -82,4 +93,34 @@
 .at-dark .at-chrome .bg-slate-900 {
   background: #f8fafc;
   color: #0f172a;
+}
+
+/* Dark-themed bikes: the part panel goes dark too (it stays white on the
+   light pages, even with the lights on) */
+.bk-dark .at-panel {
+  background: rgba(17, 19, 24, 0.94);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  color: #e2e8f0;
+}
+.bk-dark .at-panel .text-slate-900 {
+  color: #f8fafc;
+}
+.bk-dark .at-panel .text-slate-600 {
+  color: #cbd5e1;
+}
+.bk-dark .at-panel .text-slate-500,
+.bk-dark .at-panel .text-slate-400 {
+  color: #94a3b8;
+}
+.bk-dark .at-panel .border-slate-200,
+.bk-dark .at-panel .border-slate-100,
+.bk-dark .at-panel .divide-slate-100 > * {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.bk-dark .at-panel .decoration-slate-300 {
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+}
+.bk-dark .at-panel .hover\:text-slate-900:hover,
+.bk-dark .at-panel .hover\:text-slate-700:hover {
+  color: #ffffff;
 }

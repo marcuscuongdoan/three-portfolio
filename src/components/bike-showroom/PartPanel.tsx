@@ -1,4 +1,5 @@
-import { BikePart, SOURCES } from "@/config/africaTwin";
+import type { BikePart } from "@/config/bikeShowroom";
+import { useBikeDef } from "@/components/bike-showroom/BikeContext";
 
 interface PartPanelProps {
   part: BikePart;
@@ -8,25 +9,26 @@ interface PartPanelProps {
   onStep: (delta: number) => void;
 }
 
-// Details for the selected part: Honda's figures for it, with sources.
+// Details for the selected part: the maker's figures for it, with sources.
 // Mobile: a bottom sheet over the lower half; md and up: a card on the right.
 export default function PartPanel({ part, index, total, onClose, onStep }: PartPanelProps) {
+  const { sources } = useBikeDef();
   return (
     <aside
       key={part.id}
-      className="at-panel-enter at-scroll fixed z-30 inset-x-0 bottom-0 h-[52dvh] overflow-y-auto rounded-t-2xl bg-white/95 shadow-[0_-12px_40px_rgba(15,23,42,0.18)] backdrop-blur-md md:inset-x-auto md:bottom-auto md:right-6 md:top-1/2 md:h-auto md:max-h-[78vh] md:w-[400px] md:-translate-y-1/2 md:rounded-2xl md:shadow-[0_20px_60px_rgba(15,23,42,0.2)] lg:right-10 lg:w-[440px]"
+      className="at-panel at-panel-enter at-scroll fixed z-30 inset-x-0 bottom-0 h-[52dvh] overflow-y-auto rounded-t-2xl bg-white/95 shadow-[0_-12px_40px_rgba(15,23,42,0.18)] backdrop-blur-md md:inset-x-auto md:bottom-auto md:right-6 md:top-1/2 md:h-auto md:max-h-[78vh] md:w-[400px] md:-translate-y-1/2 md:rounded-2xl md:shadow-[0_20px_60px_rgba(15,23,42,0.2)] lg:right-10 lg:w-[440px]"
     >
       {/* Tricolour rule */}
       <div className="flex h-1.5 overflow-hidden rounded-t-2xl">
-        <span className="flex-1 bg-[#e4002b]" />
-        <span className="flex-1 bg-white" />
-        <span className="flex-1 bg-[#1f3a93]" />
+        <span className="flex-1 bg-[var(--bk-stripe-1)]" />
+        <span className="flex-1 bg-[var(--bk-stripe-2)]" />
+        <span className="flex-1 bg-[var(--bk-stripe-3)]" />
       </div>
 
       <div className="p-5 md:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="font-at text-xs font-semibold uppercase tracking-[0.25em] text-[#e4002b]">
+            <p className="font-at text-xs font-semibold uppercase tracking-[0.25em] text-[var(--bk-accent)]">
               {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")} · {part.kicker}
             </p>
             <h2 className="mt-1 font-at text-3xl font-bold uppercase italic leading-none text-slate-900 md:text-4xl">
@@ -60,7 +62,7 @@ export default function PartPanel({ part, index, total, onClose, onStep }: PartP
           <ul className="mt-4 space-y-1.5 text-sm text-slate-600">
             {part.notes.map((note) => (
               <li key={note} className="flex gap-2">
-                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e4002b]" />
+                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--bk-accent)]" />
                 {note}
               </li>
             ))}
@@ -73,12 +75,12 @@ export default function PartPanel({ part, index, total, onClose, onStep }: PartP
             <span key={key}>
               {i > 0 && " · "}
               <a
-                href={SOURCES[key].url}
+                href={sources[key]!.url}
                 target="_blank"
                 rel="noreferrer"
                 className="underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
               >
-                {SOURCES[key].label}
+                {sources[key]!.label}
               </a>
             </span>
           ))}

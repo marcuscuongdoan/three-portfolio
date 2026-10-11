@@ -11,22 +11,16 @@ import {
 } from "@react-three/drei";
 import { Bloom, DepthOfField, EffectComposer, Outline, ToneMapping } from "@react-three/postprocessing";
 import { BloomEffect, DepthOfFieldEffect, ToneMappingMode } from "postprocessing";
-import BikeModel, { BikeRuntime } from "@/components/africa-twin/BikeModel";
-import RideEffects from "@/components/africa-twin/RideEffects";
-import HologramIntro from "@/components/africa-twin/HologramIntro";
-import Garage from "@/components/africa-twin/Garage";
-import BackdropSweep from "@/components/africa-twin/BackdropSweep";
-import {
-  AFRICA_TWIN_CAMERA,
-  BIKE_LIGHTS,
-  EXPLODE,
-  INTRO,
-  OVERVIEW_DISTANCE,
-  PartId,
-  SUN_DIRECTION,
-} from "@/config/africaTwin";
+import BikeModel, { BikeRuntime } from "@/components/bike-showroom/BikeModel";
+import RideEffects from "@/components/bike-showroom/RideEffects";
+import HologramIntro from "@/components/bike-showroom/HologramIntro";
+import Garage from "@/components/bike-showroom/Garage";
+import BackdropSweep from "@/components/bike-showroom/BackdropSweep";
+import ShowroomSound from "@/components/bike-showroom/ShowroomSound";
+import { overviewDistance, SUN_DIRECTION } from "@/config/bikeShowroom";
+import { useBikeDef } from "@/components/bike-showroom/BikeContext";
 
-export const STUDIO_COLOR = "#e8eaed";
+type PartId = string;
 // Below this width the part panel is a bottom sheet instead of a side panel
 const STACKED_BREAKPOINT = 768;
 // Furthest the camera goes (user zoom, and framing long parts on a phone)
@@ -48,6 +42,8 @@ function CameraRig({
   // Bumped to send the camera back to the overview (Assemble)
   resetKey: number;
 }) {
+  const { camera: CAMERA, explode: EXPLODE } = useBikeDef();
+  const overview = overviewDistance(CAMERA);
   const controls = useRef<CameraControls>(null);
   const size = useThree((s) => s.size);
   const lastInput = useRef(-Infinity);
@@ -68,8 +64,8 @@ function CameraRig({
   useEffect(() => {
     const c = controls.current;
     if (!c || !bike) return;
-    const [tx, ty, tz] = AFRICA_TWIN_CAMERA.target;
-    const [px, py, pz] = AFRICA_TWIN_CAMERA.position;
+    const [tx, ty, tz] = CAMERA.target;
+    const [px, py, pz] = CAMERA.position;
 
     const part = selected ? bike.parts.get(selected) : undefined;
     if (!part) {
@@ -84,7 +80,7 @@ function CameraRig({
     const center = part.focusBox.getCenter(new THREE.Vector3());
     center.y += bike.groundOffset;
     const boxSize = part.focusBox.getSize(new THREE.Vector3());
-    const tanHalf = Math.tan(THREE.MathUtils.degToRad(AFRICA_TWIN_CAMERA.fov / 2));
+    const tanHalf = Math.tan(THREE.MathUtils.degToRad(CAMERA.fov / 2));
     const aspect = size.width / size.height;
     // Long along the bike (front + rear halves): look from the side so both
     // ends sit across the screen, back far enough to fit them in the part of
@@ -104,15 +100,16 @@ function CameraRig({
     } else {
       // Look from the overview side, leaning toward the direction the part
       // moved out so it isn't hidden behind the rest of the bike
-      const [px, py, pz] = AFRICA_TWIN_CAMERA.position;
-      const [tx, ty, tz] = AFRICA_TWIN_CAMERA.target;
+      const [px, py, pz] = CAMERA.position;
+      const [tx, ty, tz] = CAMERA.target;
       const overviewDir = new THREE.Vector3(px - tx, py - ty, pz - tz).normalize();
       dir = overviewDir.multiplyScalar(0.8).add(part.explode.clone().normalize().multiplyScalar(0.5));
       dir.y = Math.max(dir.y, 0.25);
       dir.normalize();
       const radius = boxSize.length() / 2;
       // The bottom sheet leaves only the top half of a phone for the part
-      distance = THREE.MathUtils.clamp(radius * 3.4, 1.2, 4.2) * (stacked ? 2 : 1);
+      // Small parts (a fly screen) still keep some room around them
+      distance = THREE.MathUtils.clamp(radius * 3.4, 1.6, 4.2) * (stacked ? 2 : 1);
     }
     const eye = center.clone().addScaledVector(dir, distance);
     c.setLookAt(eye.x, eye.y, eye.z, center.x, center.y, center.z, true);
@@ -124,15 +121,15 @@ function CameraRig({
     else c.setFocalOffset(distance * tanHalf * aspect * (spansBike ? 0.2 : 0.36), 0, 0, true);
     // overviewScale is read through a ref: exploding only dollies (below)
     // instead of re-aiming the camera
-  }, [bike, selected, size.width, size.height, stacked, resetKey]);
+  }, [bike, selected, size.width, size.height, stacked, resetKey, CAMERA]);
 
 
   // Exploding / assembling backs the camera off / in, keeping the angle
   useEffect(() => {
     const c = controls.current;
     if (!c || selectedRef.current) return;
-    c.dollyTo(OVERVIEW_DISTANCE * overviewScale, true);
-  }, [overviewScale]);
+    c.dollyTo(overview * overviewScale, true);
+  }, [overviewScale, overview]);
 
   useEffect(() => {
     const c = controls.current;
@@ -171,8 +168,6 @@ function CameraRig({
 // Cast shadow of the whole bike from the key light (drei's ContactShadows
 // was dropped: its square plane showed as a lighter tile on the garage floor)
 const CAST_SHADOW_OPACITY = 0.32;
-const DAY = new THREE.Color(STUDIO_COLOR);
-const NIGHT = new THREE.Color("#121419");
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 const STUDIO_KEY: [number, number, number] = [3, 5, -2];
@@ -214,6 +209,11 @@ function Studio({
   // float over the dunes (the contact shadow even picks up the sand ripples)
   worldLevel: React.RefObject<number>;
 }) {
+  const { studio } = useBikeDef().theme;
+  const { DAY, NIGHT } = useMemo(
+    () => ({ DAY: new THREE.Color(studio.day), NIGHT: new THREE.Color(studio.night) }),
+    [studio],
+  );
   const floor = useRef<THREE.MeshBasicMaterial>(null);
   const floorMesh = useRef<THREE.Mesh>(null);
   const litFloor = useRef<THREE.Mesh>(null);
@@ -277,15 +277,15 @@ function Studio({
 
   return (
     <>
-      <color attach="background" args={[STUDIO_COLOR]} />
+      <color attach="background" args={[studio.day]} />
       {/* Unlit floor in the background colour: a seamless infinite studio */}
       <mesh ref={floorMesh} rotation-x={-Math.PI / 2} position-y={-0.001}>
         <circleGeometry args={[40, 64]} />
-        <meshBasicMaterial ref={floor} color={STUDIO_COLOR} />
+        <meshBasicMaterial ref={floor} color={studio.day} />
       </mesh>
       <mesh ref={litFloor} rotation-x={-Math.PI / 2} position-y={-0.002} visible={false}>
         <circleGeometry args={[40, 64]} />
-        <meshStandardMaterial color="#5a616b" emissive={NIGHT} roughness={0.85} />
+        <meshStandardMaterial color="#5a616b" emissive={studio.night} roughness={0.85} />
       </mesh>
       {/* Catches the key light's shadow of the whole bike (assembled only).
           Wider than the garage, so its edge never shows on the garage floor */}
@@ -327,7 +327,6 @@ function Studio({
 /* ------------------------------ Headlights ------------------------------- */
 
 const BEAM_LENGTH = 3.2;
-const BEAM_DIRECTION = new THREE.Vector3(...BIKE_LIGHTS.beamDirection).normalize();
 const BEAM_COLOR = new THREE.Color("#fff3dc");
 
 // Vertical alpha gradient for the beam cone: bright at the lamp (top of the
@@ -360,6 +359,8 @@ function HeadlightBeams({
   lightsLevel: React.RefObject<number>;
   assembled: boolean;
 }) {
+  const { lights } = useBikeDef();
+  const BEAM_DIRECTION = useMemo(() => new THREE.Vector3(...lights.beamDirection).normalize(), [lights]);
   const level = useRef(0);
   const spots = useRef<(THREE.SpotLight | null)[]>([]);
   const cones = useRef<(THREE.Mesh | null)[]>([]);
@@ -372,16 +373,16 @@ function HeadlightBeams({
   }, []);
   const quaternion = useMemo(
     () => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), BEAM_DIRECTION),
-    [],
+    [BEAM_DIRECTION],
   );
   const targets = useMemo(
     () =>
-      BIKE_LIGHTS.headlights.map(([x, y, z]) => {
+      lights.headlights.map(([x, y, z]) => {
         const target = new THREE.Object3D();
         target.position.set(x, y, z).addScaledVector(BEAM_DIRECTION, 4);
         return target;
       }),
-    [],
+    [lights, BEAM_DIRECTION],
   );
 
   useFrame((_, delta) => {
@@ -403,7 +404,7 @@ function HeadlightBeams({
 
   return (
     <group position-y={bike.groundOffset}>
-      {BIKE_LIGHTS.headlights.map((position, i) => (
+      {lights.headlights.map((position, i) => (
         <group key={position.join()}>
           <primitive object={targets[i]!} />
           <spotLight
@@ -497,6 +498,14 @@ export default function BikeScene({
   onHoverPart,
   onClickPart,
 }: BikeSceneProps) {
+  const def = useBikeDef();
+  const { intro: INTRO, theme } = def;
+  // Spec screens in the garage
+  const screenTitle = `${def.modelLine.replace(def.brand, "").trim()}  ${def.title}`.toUpperCase();
+  const screenLine = def.heroSpecs
+    .slice(0, 3)
+    .map(([value]) => value)
+    .join("  ·  ");
   const [bike, setBike] = useState<BikeRuntime | null>(null);
   const handleReady = useCallback((runtime: BikeRuntime) => setBike(runtime), []);
 
@@ -602,9 +611,18 @@ export default function BikeScene({
         intro={introRunning}
         worldLevel={worldLevel}
       />
+      <ShowroomSound introClock={introClock} rideLevel={rideLevel} riding={riding} />
       {/* Only swaps the visitor asked for (ride / backdrop toggle), not explode */}
       <BackdropSweep trigger={`${worldShown}|${backdrop}`} />
-      <Garage show={garageShown} lightsLevel={lightsLevel} levelRef={garageLevel} worldLevel={worldLevel} />
+      <Garage
+        palette={theme.garage}
+        screenTitle={screenTitle}
+        screenLine={screenLine}
+        show={garageShown}
+        lightsLevel={lightsLevel}
+        levelRef={garageLevel}
+        worldLevel={worldLevel}
+      />
       {bike && <HeadlightBeams bike={bike} lightsLevel={lightsLevel} assembled={!apart} />}
       {bike && <HologramIntro bike={bike} clock={introClock} />}
       {bike && (

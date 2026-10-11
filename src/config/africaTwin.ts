@@ -6,13 +6,18 @@
  * paraphrased; numbers are quoted as Honda lists them.
  *
  * Mesh grouping is based on the node names inside the GLB
- * (`public/models/bikes/africa_twin_textured.glb`). Model space: metres,
- * +Y up, front of the bike towards -Z, the right-hand side (exhaust) towards +X.
+ * (`public/models/bikes/africa_twin_textured.glb`). Model space: see
+ * bikeShowroom.ts.
  */
 
-export const AFRICA_TWIN_MODEL = "/models/bikes/africa_twin_textured.glb";
+import {
+  type BikeDefinition,
+  type BikePart,
+  DEFAULT_EXPLODE,
+  INTRO_TIMING,
+} from "@/config/bikeShowroom";
 
-export const SOURCES = {
+const SOURCES = {
   specs: {
     label: "Honda UK — CRF1100L Africa Twin specifications & price",
     url: "https://www.honda.co.uk/motorcycles/range/adventure/crf1100l-africa-twin/specifications-and-price.html",
@@ -21,49 +26,9 @@ export const SOURCES = {
     label: "Honda UK — CRF1100L Africa Twin overview",
     url: "https://www.honda.co.uk/motorcycles/range/adventure/crf1100l-africa-twin/overview.html",
   },
-} as const;
+};
 
-export type SourceKey = keyof typeof SOURCES;
-
-export type PartId =
-  | "engine"
-  | "cooling"
-  | "exhaust"
-  | "frame"
-  | "front-suspension"
-  | "rear-suspension"
-  | "front-wheel"
-  | "rear-wheel"
-  | "brakes"
-  | "cockpit"
-  | "windscreen"
-  | "bodywork"
-  | "seat"
-  | "controls"
-  | "lighting"
-  | "accessories";
-
-export interface BikePart {
-  id: PartId;
-  name: string;
-  kicker: string;
-  // Node names (exact, or prefix when ending with "*") that belong to this part
-  nodes: string[];
-  // How far the part moves out in the exploded view (model space, metres)
-  explode: [number, number, number];
-  // Per-node overrides, e.g. front and rear brakes moving in opposite directions
-  explodeOverrides?: { nodes: string[]; explode: [number, number, number] }[];
-  // Push while the part is open (default EXPLODE.selectedBoost). Parts split
-  // front/rear stay close to their wheels instead, or the two halves end up
-  // metres apart and too small to see once both are framed
-  focusBoost?: number;
-  summary: string;
-  specs: [label: string, value: string][];
-  notes?: string[];
-  sources: SourceKey[];
-}
-
-export const BIKE_PARTS: BikePart[] = [
+const BIKE_PARTS: BikePart[] = [
   {
     id: "engine",
     name: "Engine & transmission",
@@ -351,130 +316,78 @@ export const BIKE_PARTS: BikePart[] = [
   },
 ];
 
-// Nodes in the GLB that are never shown: the collision hull, and a copy of
-// the radiator parts parked at the origin
-export const HIDDEN_NODES = ["africat.col", "twin_forks*"];
-
-// GLTFLoader strips characters reserved by animation bindings from node names
-// ("chassis.001" loads as "chassis001"), so compare names the same way
-const sanitize = (name: string) => name.replace(/[[\].:/]/g, "");
-
-export const matchesNode = (patterns: string[], name: string) => {
-  const n = sanitize(name);
-  return patterns.some((p) =>
-    p.endsWith("*") ? n.startsWith(sanitize(p.slice(0, -1))) : n === sanitize(p),
-  );
-};
-
-// Headline numbers for the page header
-export const HERO_SPECS: [value: string, label: string][] = [
-  ["1084 cc", "Parallel twin"],
-  ["75.0 kW", "@ 7,500 rpm"],
-  ["112 Nm", "@ 5,500 rpm"],
-  ["230 / 220 mm", "Suspension travel"],
-  ["21″ / 18″", "Tubeless wheels"],
-];
-
-/**
- * How far parts spread. A part sits at `rest + explode × scale × spread`, where
- * spread is 0 assembled, 1 exploded (click), up to 1 + zoomExtra when zooming
- * in, and `focusSpread` while a part is open — that part also gets
- * `selectedBoost` so it pulls clear of the rest.
- */
-export const EXPLODE = {
-  scale: 1.5,
-  focusSpread: 1.35,
-  selectedBoost: 1.6,
-  // Zooming in spreads the parts: none at zoomStart × the overview distance,
-  // fully exploded at zoomFull ×, then up to 1 + zoomExtra
-  zoomStart: 0.9,
-  zoomFull: 0.4,
-  zoomExtra: 0.5,
-  // The overview camera backs off by this much while exploded
-  explodedDolly: 1.3,
-};
-
-/**
- * Lights toggle: which meshes glow (only their lens/lamp materials — not the
- * black housings). The glow is emissive, picked up by the bloom pass.
- */
-export const BIKE_LIGHTS = {
-  glow: [
-    { nodes: ["headlight_*"], color: "#fff4dc", intensity: 6 },
-    { nodes: ["extralight_*", "twin_touring.001"], color: "#fff0c8", intensity: 5 },
-    { nodes: ["taillight_*"], color: "#ff2424", intensity: 5 },
+export const AFRICA_TWIN: BikeDefinition = {
+  slug: "africa-twin",
+  path: "/africa-twin",
+  brand: "Honda",
+  modelLine: "Honda CRF1100L",
+  title: "Africa Twin",
+  year: "2026",
+  tagline: "Adventure Roads",
+  model: "/models/bikes/africa_twin_textured.glb",
+  // The collision hull, and a copy of the radiator parts parked at the origin
+  hiddenNodes: ["africat.col", "twin_forks*"],
+  parts: BIKE_PARTS,
+  sources: SOURCES,
+  credit: { name: "Honda UK", source: "specs" },
+  heroSpecs: [
+    ["1084 cc", "Parallel twin"],
+    ["75.0 kW", "@ 7,500 rpm"],
+    ["112 Nm", "@ 5,500 rpm"],
+    ["230 / 220 mm", "Suspension travel"],
+    ["21″ / 18″", "Tubeless wheels"],
   ],
-  lampMaterial: /headlight|lights|foglight|glass/i,
-  // Headlight beams: spotlights on the floor plus a soft visible cone
-  headlights: [
-    [-0.08, 0.45, -0.8],
-    [0.08, 0.45, -0.8],
-  ] as [number, number, number][],
-  beamDirection: [0, -0.22, -1] as [number, number, number],
+  explode: DEFAULT_EXPLODE,
+  lights: {
+    glow: [
+      { nodes: ["headlight_*"], color: "#fff4dc", intensity: 6 },
+      { nodes: ["extralight_*", "twin_touring.001"], color: "#fff0c8", intensity: 5 },
+      { nodes: ["taillight_*"], color: "#ff2424", intensity: 5 },
+    ],
+    lampMaterial: /headlight|lights|foglight|glass/i,
+    headlights: [
+      [-0.08, 0.45, -0.8],
+      [0.08, 0.45, -0.8],
+    ],
+    beamDirection: [0, -0.22, -1],
+  },
+  ride: {
+    wheelNodes: ["wheel_lf*", "wheel_lr*"],
+    // The calipers share the disc nodes but don't spin
+    discNodes: ["bikedisc_*"],
+    discMaterial: /discbrake/i,
+    spin: 11,
+    exhaustOutlet: [0.21, 0.24, 0.96],
+    rearContact: [0, -0.56, 0.86],
+  },
+  intro: { ...INTRO_TIMING, zFront: -1.2, zBack: 1.25 },
+  // 270° parallel twin: uneven 270 / 450° firing — the V-twin-like thump
+  sound: {
+    firing: [0, 270],
+    idleRpm: 1150,
+    cruiseRpm: 5000,
+    peakRpm: 6800,
+    // 2-into-1 under the engine, long silencer
+    headers: [0.72, 0.78],
+    main: 0.95,
+    tone: 900,
+    body: 95,
+    window: 230,
+    variability: 0.2,
+    pops: false,
+  },
+  camera: {
+    fov: 35,
+    position: [4.5, 1.95, -3.4],
+    target: [0, 0.75, 0],
+  },
+  theme: {
+    dark: false,
+    accent: "#e4002b",
+    accentHover: "#c00024",
+    accent2: "#1f3a93",
+    stripes: ["#e4002b", "#ffffff", "#1f3a93"],
+    studio: { day: "#e8eaed", night: "#121419" },
+    garage: "light",
+  },
 };
-
-/**
- * Ride simulation (assembled only): spinning wheels and discs, exhaust smoke,
- * dust off the rear tyre and speed streaks on the floor. Positions are in
- * model space (before the ground lift).
- */
-// Toward the sun in the ride world (unit vector): the key light moves here,
-// the sky draws the sun here and every shadow in the world falls away from
-// it. Front-right and above the overview camera, like the studio key light
-export const SUN_DIRECTION: [number, number, number] = [0.706, 0.53, -0.471];
-
-export const RIDE = {
-  wheelNodes: ["wheel_lf*", "wheel_lr*"],
-  // Brake meshes that spin with the wheels (the calipers don't)
-  discNodes: ["bikedisc_*"],
-  discMaterial: /discbrake/i,
-  // Wheel spin at full speed, rad/s (kept low enough not to strobe)
-  spin: 11,
-  exhaustOutlet: [0.21, 0.24, 0.96] as [number, number, number],
-  rearContact: [0, -0.56, 0.86] as [number, number, number],
-  // Floor streak speed, m/s
-  streakSpeed: 7,
-};
-
-/**
- * First-load intro, three front-to-back scan sweeps (seconds from the moment
- * loading finishes):
- * 1. scan — the scan edge passes over the bike, leaving a hologram point
- *    cloud behind it, with laser beams on the edge and digital rain behind;
- * 2. shape — the next sweep swaps the hologram for the bare shape (untextured
- *    clay);
- * 3. texture — the last sweep paints the real materials back on, as the
- *    studio lights come back up.
- */
-export const INTRO = {
-  points: 45000,
-  // Model-space Z extent the sweeps run across (front is -Z)
-  zFront: -1.2,
-  zBack: 1.25,
-  scanStart: 0.15,
-  scanEnd: 2.55,
-  shapeStart: 2.85,
-  shapeEnd: 4.2,
-  textureStart: 4.35,
-  textureEnd: 5.7,
-  end: 6.0,
-  // Particles settle into place this fast once the edge passes them, from
-  // this offset (small: they condense rather than fly in)
-  flight: 0.65,
-  fromOffset: [0, 0.12, -0.35] as [number, number, number],
-  // HDR cyan, so the bloom pass makes it glow
-  color: [0.45, 1.0, 0.85] as [number, number, number],
-};
-
-export const AFRICA_TWIN_CAMERA = {
-  fov: 35,
-  position: [4.5, 1.95, -3.4] as [number, number, number],
-  target: [0, 0.75, 0] as [number, number, number],
-};
-
-// Camera-to-target distance of the overview
-export const OVERVIEW_DISTANCE = Math.hypot(
-  AFRICA_TWIN_CAMERA.position[0] - AFRICA_TWIN_CAMERA.target[0],
-  AFRICA_TWIN_CAMERA.position[1] - AFRICA_TWIN_CAMERA.target[1],
-  AFRICA_TWIN_CAMERA.position[2] - AFRICA_TWIN_CAMERA.target[2],
-);
