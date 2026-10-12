@@ -43,7 +43,7 @@ function EntryLink({
 }
 
 // Homepage entry points to the side pages: the Legends Trial campfire and the
-// Africa Twin / MT-09 / R nineT Pure exploded views and the gas turbine
+// Africa Twin / MT-09 / R nineT Pure / G 63 exploded views and the gas turbine
 // simulation (top-left, stacked; icon-only row on mobile)
 export default function LegendsPanel() {
   return (
@@ -96,6 +96,20 @@ export default function LegendsPanel() {
             <span className="flex-1 bg-[#1c69d4]" />
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-[#16171a]" />
+          </span>
+        }
+      />
+      <EntryLink
+        href="/g63"
+        label="Mercedes-AMG G 63"
+        kicker="Mercedes-AMG"
+        title="G 63"
+        icon={
+          // AMG red / silver / white, sliding on hover
+          <span className="flex w-6 h-3.5 -skew-x-12 overflow-hidden rounded-xs group-hover:translate-x-0.5 transition-transform">
+            <span className="flex-1 bg-[#e21b2c]" />
+            <span className="flex-1 bg-[#9aa3ad]" />
+            <span className="flex-1 bg-[#f5f5f5]" />
           </span>
         }
       />

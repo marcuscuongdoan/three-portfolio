@@ -23,8 +23,10 @@ import { useBikeDef } from "@/components/bike-showroom/BikeContext";
 type PartId = string;
 // Below this width the part panel is a bottom sheet instead of a side panel
 const STACKED_BREAKPOINT = 768;
-// Furthest the camera goes (user zoom, and framing long parts on a phone)
+// Furthest the camera goes (user zoom, and framing long parts on a phone),
+// for a bike; bigger vehicles (BikeDefinition.stage) get further
 const MAX_DISTANCE = 14;
+const maxDistanceFor = (stage: number) => MAX_DISTANCE * Math.max(1, stage * 0.75);
 // Seconds without input before the idle turntable resumes
 const IDLE_DELAY = 4;
 
@@ -42,8 +44,9 @@ function CameraRig({
   // Bumped to send the camera back to the overview (Assemble)
   resetKey: number;
 }) {
-  const { camera: CAMERA, explode: EXPLODE } = useBikeDef();
+  const { camera: CAMERA, explode: EXPLODE, stage = 1 } = useBikeDef();
   const overview = overviewDistance(CAMERA);
+  const maxDistance = maxDistanceFor(stage);
   const controls = useRef<CameraControls>(null);
   const size = useThree((s) => s.size);
   const lastInput = useRef(-Infinity);
@@ -96,7 +99,7 @@ function CameraRig({
       const fitWidth = boxSize.z / 2 / (tanHalf * aspect * freeWidth);
       const fitHeight = boxSize.y / 2 / (tanHalf * (stacked ? 0.45 : 0.85));
       // A phone is narrow: framing both ends can take further than desktop
-      distance = THREE.MathUtils.clamp(Math.max(fitWidth, fitHeight) * 1.1, 1.2, MAX_DISTANCE);
+      distance = THREE.MathUtils.clamp(Math.max(fitWidth, fitHeight) * 1.1, 1.2 * stage, maxDistance);
     } else {
       // Look from the overview side, leaning toward the direction the part
       // moved out so it isn't hidden behind the rest of the bike
@@ -109,7 +112,8 @@ function CameraRig({
       const radius = boxSize.length() / 2;
       // The bottom sheet leaves only the top half of a phone for the part
       // Small parts (a fly screen) still keep some room around them
-      distance = THREE.MathUtils.clamp(radius * 3.4, 1.6, 4.2) * (stacked ? 2 : 1);
+      // A car's big panels need more room around them than a bike's parts
+      distance = THREE.MathUtils.clamp(radius * 3.4 * Math.sqrt(stage), 1.6 * stage, 4.2 * stage) * (stacked ? 2 : 1);
     }
     const eye = center.clone().addScaledVector(dir, distance);
     c.setLookAt(eye.x, eye.y, eye.z, center.x, center.y, center.z, true);
@@ -121,7 +125,7 @@ function CameraRig({
     else c.setFocalOffset(distance * tanHalf * aspect * (spansBike ? 0.2 : 0.36), 0, 0, true);
     // overviewScale is read through a ref: exploding only dollies (below)
     // instead of re-aiming the camera
-  }, [bike, selected, size.width, size.height, stacked, resetKey, CAMERA]);
+  }, [bike, selected, size.width, size.height, stacked, resetKey, CAMERA, stage, maxDistance]);
 
 
   // Exploding / assembling backs the camera off / in, keeping the angle
@@ -158,7 +162,7 @@ function CameraRig({
       ref={controls}
       makeDefault
       minDistance={0.8}
-      maxDistance={MAX_DISTANCE}
+      maxDistance={maxDistance}
       maxPolarAngle={Math.PI * 0.49}
       smoothTime={0.45}
     />
@@ -172,11 +176,12 @@ const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 
 const STUDIO_KEY: [number, number, number] = [3, 5, -2];
 const SUN_DISTANCE = 40;
-// Studio: a tight 5 m box on the bike (crisp). Terrain: 60 m around it so
+// Studio: a tight 5 m box on the bike (crisp; × stage for bigger vehicles).
+// Terrain: 60 m around it so
 // buildings, poles and rocks shadow the ground too, at double resolution.
 // Reallocates the map, so only on the switch
-const fitShadow = (light: THREE.DirectionalLight, wide: boolean) => {
-  const half = wide ? 30 : 2.6;
+const fitShadow = (light: THREE.DirectionalLight, wide: boolean, stage: number) => {
+  const half = wide ? 30 : 2.6 * stage;
   const cam = light.shadow.camera;
   cam.left = cam.bottom = -half;
   cam.right = cam.top = half;
@@ -209,7 +214,10 @@ function Studio({
   // float over the dunes (the contact shadow even picks up the sand ripples)
   worldLevel: React.RefObject<number>;
 }) {
-  const { studio } = useBikeDef().theme;
+  const {
+    theme: { studio },
+    stage = 1,
+  } = useBikeDef();
   const { DAY, NIGHT } = useMemo(
     () => ({ DAY: new THREE.Color(studio.day), NIGHT: new THREE.Color(studio.night) }),
     [studio],
@@ -269,7 +277,7 @@ function Studio({
       );
       if (onTerrain !== wideShadow.current) {
         wideShadow.current = onTerrain;
-        fitShadow(key.current, onTerrain);
+        fitShadow(key.current, onTerrain, stage);
       }
     }
     if (fill.current) fill.current.intensity = mix(0.6, 0.12, t);
@@ -302,10 +310,10 @@ function Studio({
         intensity={1.6}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-2.6}
-        shadow-camera-right={2.6}
-        shadow-camera-top={2.6}
-        shadow-camera-bottom={-2.6}
+        shadow-camera-left={-2.6 * stage}
+        shadow-camera-right={2.6 * stage}
+        shadow-camera-top={2.6 * stage}
+        shadow-camera-bottom={-2.6 * stage}
         shadow-camera-near={0.5}
         shadow-camera-far={15}
         shadow-bias={-0.0004}
@@ -615,17 +623,21 @@ export default function BikeScene({
         worldLevel={worldLevel}
       />
       <ShowroomSound introClock={introClock} rideLevel={rideLevel} riding={riding} />
-      {/* Only swaps the visitor asked for (ride / backdrop toggle), not explode */}
-      <BackdropSweep trigger={`${worldShown}|${backdrop}`} />
-      <Garage
-        palette={theme.garage}
-        screenTitle={screenTitle}
-        screenLine={screenLine}
-        show={garageShown}
-        lightsLevel={lightsLevel}
-        levelRef={garageLevel}
-        worldLevel={worldLevel}
-      />
+      {/* A bigger vehicle (stage) gets a bigger bay: the garage and the sweep
+          that swaps it scale up with it */}
+      <group scale={def.stage ?? 1}>
+        {/* Only swaps the visitor asked for (ride / backdrop toggle), not explode */}
+        <BackdropSweep trigger={`${worldShown}|${backdrop}`} />
+        <Garage
+          palette={theme.garage}
+          screenTitle={screenTitle}
+          screenLine={screenLine}
+          show={garageShown}
+          lightsLevel={lightsLevel}
+          levelRef={garageLevel}
+          worldLevel={worldLevel}
+        />
+      </group>
       {bike && <HeadlightBeams bike={bike} lightsLevel={lightsLevel} assembled={!apart} />}
       {bike && <HologramIntro bike={bike} clock={introClock} intro={INTRO} />}
       {bike && (

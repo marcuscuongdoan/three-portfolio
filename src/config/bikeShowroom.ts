@@ -251,6 +251,12 @@ export interface BikeDefinition {
   year: string;
   // Short line in the loading screen and the footer credit
   tagline: string;
+  // What the vehicle is called in the hints ("Click to take the bike apart");
+  // default "bike"
+  noun?: string;
+  // Size of the vehicle against a motorcycle (default 1): scales the garage
+  // bay, the studio shadow and how far the camera frames parts from
+  stage?: number;
   model: string;
   // Nodes in the GLB that are never shown (collision hulls, stray copies)
   hiddenNodes: string[];

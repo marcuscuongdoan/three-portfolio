@@ -675,7 +675,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
             <p className="hidden text-xs uppercase tracking-widest text-slate-500 md:block">
               {apart
                 ? "Click a part for details · scroll to spread further · click empty space to reassemble"
-                : "Click or scroll into the bike to take it apart"}
+                : `Click or scroll into the ${def.noun ?? "bike"} to take it apart`}
             </p>
           </div>
         </div>
@@ -701,7 +701,7 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
             {hoveredPart.name}
           </p>
           <p className="text-[11px] text-white/70">
-            {apart ? hoveredPart.kicker : "Click to take the bike apart"}
+            {apart ? hoveredPart.kicker : `Click to take the ${def.noun ?? "bike"} apart`}
           </p>
         </div>
       )}
