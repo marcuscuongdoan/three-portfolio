@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Bvh, CameraControls, Environment, Lightformer } from "@react-three/drei";
-import { Bloom, EffectComposer, Outline, ToneMapping } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, N8AO, Outline, ToneMapping } from "@react-three/postprocessing";
 import { BloomEffect, ToneMappingMode } from "postprocessing";
 import PlantModel, { type PlantRuntime } from "@/components/plant-showroom/PlantModel";
 import PlantFlows from "@/components/plant-showroom/PlantFlows";
@@ -57,7 +57,15 @@ function CameraRig({
     const center = part.box.getCenter(new THREE.Vector3());
     center.y += plant.groundOffset;
     const radius = part.box.getSize(new THREE.Vector3()).length() / 2;
+    // Look from outside the pad, on the part's own side, so the rest of the
+    // unit isn't stacked (dimmed) between the camera and the part. Parts in
+    // the middle keep the overview's side
     const dir = new THREE.Vector3(px - tx, py - ty, pz - tz).normalize();
+    const outward = center.clone().sub(plant.box.getCenter(new THREE.Vector3())).setY(0);
+    if (outward.length() > 0.6) {
+      outward.normalize();
+      dir.multiplyScalar(0.35).add(outward.add(new THREE.Vector3(0, 0.8, 0)).normalize()).normalize();
+    }
     // Fit the part's bounding sphere in the share of the view the panel leaves
     const fit = radius / (tanHalf * Math.min(1, aspect) * (stacked ? 0.95 : 0.8));
     const distance = THREE.MathUtils.clamp(fit * 1.35, 2.4, MAX_DISTANCE) * (stacked ? 1.35 : 1);
@@ -127,7 +135,8 @@ function Yard({ night, shadows }: { night: string; shadows: boolean }) {
         <shadowMaterial ref={shadow} transparent opacity={0} />
       </mesh>
 
-      <ambientLight intensity={0.25} color="#b8c6ff" />
+      {/* Night sky above, the lit yard bouncing warm light from below */}
+      <hemisphereLight args={["#9fb0d8", "#4a3f33", 0.45]} />
       <directionalLight
         position={[5, 9, 4]}
         intensity={1.5}
@@ -293,6 +302,9 @@ export default function PlantScene({
       {/* autoClear={false} is required for Outline; the composer turns off the
           renderer's tone mapping, so ACES is re-added at the end */}
       <EffectComposer autoClear={false} multisampling={4}>
+        {/* Contact shadows in every corner, under every platform and pipe
+            rack: most of what makes the steelwork read as solid */}
+        <N8AO aoRadius={0.35} distanceFalloff={0.6} intensity={2.6} quality="medium" halfRes />
         <Outline
           selection={hoverSelection}
           selectionLayer={10}

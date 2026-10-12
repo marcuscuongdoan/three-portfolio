@@ -6,6 +6,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import type { PlantDefinition } from "@/config/gasTurbine";
 import type { PlantSim } from "@/components/plant-showroom/plantSim";
+import { applyFinish, finishFor } from "@/components/plant-showroom/plantMaterials";
 
 // Opacity of the other parts while one is open
 const DIMMED_OPACITY = 0.12;
@@ -46,27 +47,6 @@ const setOpacity = (states: MaterialState[], fade: number, modeChanged: boolean)
       s.material.needsUpdate = true;
     }
   });
-
-/**
- * The source materials are steel textures at full metalness, which only
- * mirror the night around them and read as black. Plant steel is painted:
- * keep the textures' grain, drop most of the metal, and give each paint its
- * shade (light enclosures, darker gratings and rails)
- */
-const PAINT: Record<string, { color: string; metalness: number; roughness: number }> = {
-  metal_white: { color: "#d9dde2", metalness: 0.25, roughness: 0.55 },
-  paint_gray: { color: "#b4bac2", metalness: 0.2, roughness: 0.6 },
-  paint_dark_gray: { color: "#6d747d", metalness: 0.2, roughness: 0.7 },
-};
-const paint = (material: THREE.Material) => {
-  const m = material as THREE.MeshStandardMaterial;
-  const finish = PAINT[m.name];
-  if (!finish || !m.isMeshStandardMaterial) return;
-  m.color.set(finish.color);
-  m.metalnessMap = null;
-  m.metalness = finish.metalness;
-  m.roughness = finish.roughness;
-};
 
 const shake = (meshes: THREE.Mesh[], amount: number, t: number) =>
   meshes.forEach((m, i) => {
@@ -109,7 +89,9 @@ const buildPlant = (source: THREE.Object3D, def: PlantDefinition) => {
     }
     const own = (material: THREE.Material) => {
       const copy = material.clone();
-      paint(copy);
+      // The source steel swatches sit at full metalness and only mirror the
+      // night: each part gets its real paint and weathering instead
+      applyFinish(copy, finishFor(id, material.name));
       copy.clippingPlanes = [introPlane];
       copy.clipShadows = true;
       states!.push({ material: copy, opacity: copy.opacity, transparent: copy.transparent });
