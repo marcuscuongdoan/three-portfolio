@@ -627,7 +627,7 @@ export default function BikeScene({
         worldLevel={worldLevel}
       />
       {bike && <HeadlightBeams bike={bike} lightsLevel={lightsLevel} assembled={!apart} />}
-      {bike && <HologramIntro bike={bike} clock={introClock} />}
+      {bike && <HologramIntro bike={bike} clock={introClock} intro={INTRO} />}
       {bike && (
         <RideEffects
           groundOffset={bike.groundOffset}

@@ -4,9 +4,19 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { MeshSurfaceSampler } from "three/examples/jsm/math/MeshSurfaceSampler.js";
-import type { BikeRuntime } from "@/components/bike-showroom/BikeModel";
 import type { IntroSettings } from "@/config/bikeShowroom";
-import { useBikeDef } from "@/components/bike-showroom/BikeContext";
+
+/**
+ * What the intro needs of the model on show (a bike — BikeRuntime — or the
+ * plant showroom's unit): its meshes by part, the lift that puts it on the
+ * floor, the clipping plane on its own materials and its root object
+ */
+export interface IntroSubject {
+  parts: Map<string, { meshes: THREE.Mesh[] }>;
+  groundOffset: number;
+  introPlane: THREE.Plane;
+  root: THREE.Object3D;
+}
 
 // Mutating objects that came in through props / memos lives outside the
 // component (the React Compiler forbids it inline)
@@ -81,7 +91,7 @@ const UP = new THREE.Vector3(0, 1, 0);
  * hologram point cloud — each point appears as the scan edge passes its Z —
  * and lists every mesh with its bike-space matrix for the clay copy.
  */
-const buildIntro = (bike: BikeRuntime, INTRO: IntroSettings) => {
+const buildIntro = (bike: IntroSubject, INTRO: IntroSettings) => {
   const meshes = [...bike.parts.values()].flatMap((p) => p.meshes).filter((m) => m.visible);
   bike.root.updateMatrixWorld(true);
   const toRoot = bike.root.matrixWorld.clone().invert();
@@ -146,11 +156,15 @@ const buildIntro = (bike: BikeRuntime, INTRO: IntroSettings) => {
 export default function HologramIntro({
   bike,
   clock,
+  intro: INTRO,
+  laserSpan = 0.75,
 }: {
-  bike: BikeRuntime;
+  bike: IntroSubject;
   clock: React.RefObject<number>;
+  intro: IntroSettings;
+  // Height range above the floor the lasers sweep over
+  laserSpan?: number;
 }) {
-  const { intro: INTRO } = useBikeDef();
   const HIDDEN_Z = hiddenZ(INTRO);
   const { cloud, clay } = useMemo(() => buildIntro(bike, INTRO), [bike, INTRO]);
 
@@ -245,7 +259,7 @@ export default function HologramIntro({
     // Lasers run during the first sweep only
     scratch.target.set(
       Math.sin(t * 5.3) * 0.12,
-      bike.groundOffset + 0.15 + Math.abs(Math.sin(t * 2.7)) * 0.75,
+      bike.groundOffset + 0.15 + Math.abs(Math.sin(t * 2.7)) * laserSpan,
       scanZ,
     );
     const beamOn =

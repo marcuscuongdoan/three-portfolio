@@ -43,7 +43,8 @@ function EntryLink({
 }
 
 // Homepage entry points to the side pages: the Legends Trial campfire and the
-// Africa Twin / MT-09 / R nineT Pure exploded views (top-left, stacked; icon-only row on mobile)
+// Africa Twin / MT-09 / R nineT Pure exploded views and the gas turbine
+// simulation (top-left, stacked; icon-only row on mobile)
 export default function LegendsPanel() {
   return (
     <div className="fixed z-40 bottom-4 left-4 flex gap-2 sm:bottom-auto sm:top-6 sm:left-6 sm:flex-col sm:items-start">
@@ -95,6 +96,20 @@ export default function LegendsPanel() {
             <span className="flex-1 bg-[#1c69d4]" />
             <span className="flex-1 bg-white" />
             <span className="flex-1 bg-[#16171a]" />
+          </span>
+        }
+      />
+      <EntryLink
+        href="/gas-turbine"
+        label="Station blackout gas turbine"
+        kicker="Power plant"
+        title="SBO Gas Turbine"
+        icon={
+          // Amber / steel / safety-bus violet, sliding on hover
+          <span className="flex w-6 h-3.5 -skew-x-12 overflow-hidden rounded-xs group-hover:translate-x-0.5 transition-transform">
+            <span className="flex-1 bg-[#ffb347]" />
+            <span className="flex-1 bg-[#8b98a8]" />
+            <span className="flex-1 bg-[#9d8cff]" />
           </span>
         }
       />

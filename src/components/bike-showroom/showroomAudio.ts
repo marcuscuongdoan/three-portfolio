@@ -10,6 +10,9 @@
  *   bike's firing order, header and pipe lengths — cranking on the starter,
  *   catching, three gears with a throttle cut at each shift, crackle off the
  *   throttle — plus wind noise that grows with the speed.
+ * - Turbine (plant showroom, /gas-turbine): starter, light-off, compressor
+ *   whine and roar following the simulated run, the blackout alarm and the
+ *   breakers closing.
  *
  * One AudioContext for the whole app, created on the first click of the
  * sound toggle (browsers only start audio from a user gesture).
@@ -286,6 +289,134 @@ class EngineVoice {
   }
 }
 
+/* -------------------------------- Turbine -------------------------------- */
+
+/** What the plant showroom's gas turbine is doing (see plantSim.ts) */
+export interface TurbineSoundInput {
+  // 0..1 shaft speed
+  speed: number;
+  flame: boolean;
+  // 0..1 of the shutdown load
+  load: number;
+  // The blackout has just been declared (alarm)
+  alarm: boolean;
+  // Safety bus live / number of load groups on (a clunk per change)
+  busLive: boolean;
+  loadsOn: number;
+}
+
+/**
+ * A gas turbine, synthesised: the starter's whine while cranking, a whoomp at
+ * light-off, the compressor's blade-pass whine and the combustion roar rising
+ * with speed and load, a low shaft rumble, plus the station alarm and the
+ * clunk of each breaker closing.
+ */
+class TurbineVoice {
+  private ctx: AudioContext;
+  private bus: AudioNode;
+  private sources: AudioScheduledSourceNode[] = [];
+  private whine: GainNode;
+  private whineA: OscillatorNode;
+  private whineB: OscillatorNode;
+  private whineFilter: BiquadFilterNode;
+  private roar: GainNode;
+  private roarFilter: BiquadFilterNode;
+  private rumble: GainNode;
+  private rumbleOsc: OscillatorNode;
+  private starter: GainNode;
+  private starterOsc: OscillatorNode;
+  private flame = false;
+  private busLive = false;
+  private loadsOn = 0;
+  private alarmUntil = 0;
+  private nextBeep = 0;
+
+  constructor(ctx: AudioContext, bus: AudioNode) {
+    this.ctx = ctx;
+    this.bus = bus;
+
+    // Compressor whine: two blade-pass tones a fifth-ish apart
+    this.whine = gain(ctx);
+    this.whineFilter = filter(ctx, "bandpass", 1500, 3);
+    this.whineFilter.connect(this.whine).connect(bus);
+    this.whineA = oscillator(ctx, "sawtooth", 400);
+    this.whineB = oscillator(ctx, "triangle", 610);
+    this.whineA.connect(gain(ctx, 0.5)).connect(this.whineFilter);
+    this.whineB.connect(gain(ctx, 0.35)).connect(this.whineFilter);
+
+    // Combustion / exhaust roar: noise through a lowpass that opens with load
+    const noise = noiseBuffer(ctx, 2);
+    this.roar = gain(ctx);
+    this.roarFilter = filter(ctx, "lowpass", 300, 0.7);
+    const air = loop(ctx, noise);
+    air.connect(this.roarFilter).connect(saturator(ctx, 1.4)).connect(this.roar).connect(bus);
+
+    // Shaft rumble
+    this.rumble = gain(ctx);
+    this.rumbleOsc = oscillator(ctx, "sine", 30);
+    this.rumbleOsc.connect(filter(ctx, "lowpass", 160, 0.7)).connect(this.rumble).connect(bus);
+
+    // Starter motor
+    this.starter = gain(ctx);
+    this.starterOsc = oscillator(ctx, "sawtooth", 180);
+    this.starterOsc.connect(filter(ctx, "bandpass", 900, 2)).connect(this.starter).connect(bus);
+
+    [this.whineA, this.whineB, this.rumbleOsc, this.starterOsc].forEach((o) => o.start());
+    this.sources.push(this.whineA, this.whineB, this.rumbleOsc, this.starterOsc, air);
+  }
+
+  update(s: TurbineSoundInput) {
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const v = clamp01(s.speed);
+    const cranking = !s.flame && v > 0.01;
+
+    // Station alarm: a few seconds of two-tone beeps from the blackout
+    if (s.alarm && this.alarmUntil < now - 10) this.alarmUntil = now + 3.2;
+    if (now < this.alarmUntil && now >= this.nextBeep) {
+      blip(ctx, this.bus, now, { type: "square", from: 880, peak: 0.035, attack: 0.005, decay: 0.16 });
+      blip(ctx, this.bus, now + 0.2, { type: "square", from: 660, peak: 0.035, attack: 0.005, decay: 0.16 });
+      this.nextBeep = now + 0.8;
+    }
+
+    // Light-off: a low whoomp and a burst of roar
+    if (s.flame && !this.flame) {
+      blip(ctx, this.bus, now, { from: 70, to: 32, peak: 0.5, attack: 0.02, decay: 0.9 });
+      blip(ctx, this.bus, now, { type: "sawtooth", from: 140, to: 60, peak: 0.08, attack: 0.03, decay: 0.6 });
+    }
+    this.flame = s.flame;
+
+    // Breakers: a heavy clunk when the bus goes live and at each load step
+    if (s.busLive !== this.busLive || s.loadsOn > this.loadsOn) {
+      blip(ctx, this.bus, now, { from: 120, to: 45, peak: 0.4, attack: 0.002, decay: 0.25 });
+      blip(ctx, this.bus, now, { type: "triangle", from: 2400, to: 500, peak: 0.06, attack: 0.001, decay: 0.04 });
+    }
+    this.busLive = s.busLive;
+    this.loadsOn = s.loadsOn;
+
+    const whineHz = 220 + 2600 * v;
+    this.whineA.frequency.setTargetAtTime(whineHz, now, 0.15);
+    this.whineB.frequency.setTargetAtTime(whineHz * 1.52, now, 0.15);
+    this.whineFilter.frequency.setTargetAtTime(whineHz * 1.2, now, 0.15);
+    this.whine.gain.setTargetAtTime(smoothstep(v, 0.02, 0.3) * (0.025 + 0.02 * v), now, 0.2);
+
+    this.roarFilter.frequency.setTargetAtTime(180 + v * 900 + s.load * 900, now, 0.25);
+    this.roar.gain.setTargetAtTime(s.flame ? 0.08 + 0.06 * v + 0.1 * s.load : v * 0.05, now, 0.3);
+
+    this.rumbleOsc.frequency.setTargetAtTime(20 + 40 * v, now, 0.2);
+    this.rumble.gain.setTargetAtTime(v * (s.flame ? 0.22 : 0.08), now, 0.3);
+
+    this.starterOsc.frequency.setTargetAtTime(140 + 500 * v, now, 0.1);
+    this.starter.gain.setTargetAtTime(cranking ? 0.025 : 0, now, cranking ? 0.1 : 0.4);
+  }
+
+  dispose() {
+    const now = this.ctx.currentTime;
+    [this.whine, this.roar, this.rumble, this.starter].forEach((g) => g.gain.setTargetAtTime(0, now, 0.05));
+    this.sources.forEach((s) => s.stop(now + 0.4));
+  }
+}
+
 /* --------------------------------- Intro --------------------------------- */
 
 class IntroVoice {
@@ -421,6 +552,7 @@ class ShowroomAudio {
   private master: GainNode;
   private enabled = false;
   private engine: EngineVoice | null = null;
+  private turbine: TurbineVoice | null = null;
   private intro: IntroVoice | null = null;
   // The engine worklet module loads asynchronously
   private workletReady = false;
@@ -472,6 +604,14 @@ class ShowroomAudio {
     this.engine.update(running, speed, delta);
   }
 
+  updateTurbine(input: TurbineSoundInput) {
+    if (!this.enabled) return;
+    // Only build the voice once there's something to hear
+    if (!this.turbine && input.speed < 0.005 && !input.alarm) return;
+    this.turbine ??= new TurbineVoice(this.ctx, this.master);
+    this.turbine.update(input);
+  }
+
   updateIntro(t: number, intro: IntroSettings, delta: number) {
     if (!this.enabled) return;
     const live = t >= 0 && t < intro.end + 1;
@@ -487,8 +627,10 @@ class ShowroomAudio {
   // Leaving the page: drop every voice
   stopAll() {
     this.engine?.dispose();
+    this.turbine?.dispose();
     this.intro?.dispose();
     this.engine = null;
+    this.turbine = null;
     this.intro = null;
   }
 }
