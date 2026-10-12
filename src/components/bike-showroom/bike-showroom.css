@@ -86,6 +86,16 @@
   background: rgba(12, 14, 18, 0.72);
   backdrop-filter: blur(8px);
 }
+/* The colour picker is chrome and a panel at once: its text turns light with
+   the chrome above, so its white card has to go dark with it */
+.at-dark .at-chrome.bg-white\/90 {
+  /* Same card as the dark-themed bikes' panels (.bk-dark .at-panel) */
+  background: rgba(17, 19, 24, 0.94);
+  backdrop-filter: blur(8px);
+}
+.at-dark .at-chrome.border-slate-200 {
+  border-color: rgba(255, 255, 255, 0.1);
+}
 .at-dark .at-chrome .border-slate-300 {
   border-color: rgba(255, 255, 255, 0.25);
 }

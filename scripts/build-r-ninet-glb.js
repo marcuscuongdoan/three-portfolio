@@ -11,6 +11,8 @@
  * source materials (glass made plain see-through) and Draco-compresses it
  * again.
  *
+ * The number plate is swapped for a BMW roundel on the plate holder.
+ *
  * Usage: node scripts/build-r-ninet-glb.js <source.glb> <output.glb>
  */
 
@@ -291,6 +293,119 @@ function encode(em, dm, pos, nor, idx) {
   return result;
 }
 
+// Number plate meshes dropped whole (the holder only loses its characters)
+const PLATE_MESHES = ["LicensePlate_Plate", "LicensePlate_EU_Band", "LicensePlate_EU_Stars"];
+
+/**
+ * A flat BMW roundel on the number-plate holder, facing back: chrome rims, a
+ * black ring with B M W across the top, and blue / white quarters (blue top
+ * left and bottom right). Returns one mesh per material, in model space.
+ */
+async function roundel(prims) {
+  const { FontLoader } = await import("three/examples/jsm/loaders/FontLoader.js");
+  const THREE = await import("three");
+  const fontPath = require.resolve("three").replace(/build[\\/].*$/, "examples/fonts/helvetiker_bold.typeface.json");
+  const font = new FontLoader().parse(JSON.parse(fs.readFileSync(fontPath, "utf8")));
+  const mat = (name) => prims.find((p) => p.material.name === name).material;
+
+  // The plate's frame: centre, outward normal (towards the back), up, right
+  const plate = prims.find((p) => p.name === "LicensePlate_Plate");
+  // The plate itself is the widest piece (its "AU" letters have more triangles)
+  const face = plate.comps.reduce((a, b) => (a.size[0] > b.size[0] ? a : b));
+  const n = [0, 0, 0];
+  for (const t of face.tris) {
+    const v = [0, 1, 2].map((q) => plate.idx[3 * t + q]);
+    const P = v.map((i) => [0, 1, 2].map((a) => plate.pos[3 * i + a]));
+    const e1 = P[1].map((x, a) => x - P[0][a]);
+    const e2 = P[2].map((x, a) => x - P[0][a]);
+    const c = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    // Both faces of the plate: fold them onto the back-facing side
+    const s = c[2] < 0 ? -1 : 1;
+    for (let a = 0; a < 3; a++) n[a] += s * c[a];
+  }
+  const len = Math.hypot(...n);
+  const N = n.map((x) => x / len);
+  const upRaw = [0 - N[1] * N[0], 1 - N[1] * N[1], 0 - N[1] * N[2]];
+  const ul = Math.hypot(...upRaw);
+  const U = upRaw.map((x) => x / ul);
+  const R = [U[1] * N[2] - U[2] * N[1], U[2] * N[0] - U[0] * N[2], U[0] * N[1] - U[1] * N[0]];
+  // Front face of the plate, from its bounds along the normal
+  let depth = -1e9;
+  for (const t of face.tris)
+    for (let q = 0; q < 3; q++) {
+      const i = plate.idx[3 * t + q];
+      depth = Math.max(depth, [0, 1, 2].reduce((s, a) => s + (plate.pos[3 * i + a] - face.center[a]) * N[a], 0));
+    }
+
+  const RADIUS = 0.064;
+  const layers = new Map();
+  const layer = (name) => {
+    if (!layers.has(name)) layers.set(name, { name: "Logo", material: mat(name), pos: [], nor: [], idx: [] });
+    return layers.get(name);
+  };
+  // 2D triangles (plate coords, metres) → model space, `lift` off the plate
+  const put = (name, tris2d, lift) => {
+    const l = layer(name);
+    const off = depth + lift;
+    for (const [a, b] of tris2d) {
+      for (let k = 0; k < 3; k++) {
+        l.pos.push(face.center[k] + N[k] * off + R[k] * a + U[k] * b);
+        l.nor.push(N[k]);
+      }
+      l.idx.push(l.idx.length);
+    }
+  };
+  const ring = (r0, r1, a0 = 0, a1 = Math.PI * 2, seg = 96) => {
+    const out = [];
+    const steps = Math.max(2, Math.ceil((seg * (a1 - a0)) / (Math.PI * 2)));
+    for (let i = 0; i < steps; i++) {
+      const t0 = a0 + ((a1 - a0) * i) / steps;
+      const t1 = a0 + ((a1 - a0) * (i + 1)) / steps;
+      const p = (r, t) => [r * Math.cos(t), r * Math.sin(t)];
+      if (r0 === 0) out.push([0, 0], p(r1, t0), p(r1, t1));
+      else out.push(p(r0, t0), p(r1, t0), p(r1, t1), p(r0, t0), p(r1, t1), p(r0, t1));
+    }
+    return out;
+  };
+
+  put("M_Frame_Black_Gloss", ring(0, RADIUS), 0.002);
+  put("M_Chrome", ring(RADIUS * 0.93, RADIUS), 0.0025);
+  put("M_Chrome", ring(RADIUS * 0.6, RADIUS * 0.65), 0.0025);
+  const q = Math.PI / 2;
+  // Quarters counter-clockwise from the top right: white, blue, white, blue
+  ["M_White", "M_BMW_Blue", "M_White", "M_BMW_Blue"].forEach((m, i) =>
+    put(m, ring(0, RADIUS * 0.6, i * q, (i + 1) * q, 64), 0.0025),
+  );
+
+  // B M W on the ring, upright to the centre, left to right over the top
+  const mid = RADIUS * 0.79;
+  [
+    ["B", 140],
+    ["M", 90],
+    ["W", 40],
+  ].forEach(([ch, deg]) => {
+    const g = new THREE.ShapeGeometry(font.generateShapes(ch, RADIUS * 0.24));
+    g.computeBoundingBox();
+    const c = g.boundingBox.getCenter(new THREE.Vector3());
+    const t = (deg * Math.PI) / 180;
+    g.translate(-c.x, -c.y, 0);
+    g.rotateZ(t - Math.PI / 2);
+    g.translate(mid * Math.cos(t), mid * Math.sin(t), 0);
+    const p = g.attributes.position.array;
+    const index = g.index ? g.index.array : p.map((_, i) => i);
+    const tris = [];
+    for (let i = 0; i < index.length; i++) tris.push([p[3 * index[i]], p[3 * index[i] + 1]]);
+    put("M_Chrome", tris, 0.0028);
+  });
+
+  return [...layers.values()].map((l) => ({
+    ...l,
+    pos: new Float32Array(l.pos),
+    nor: new Float32Array(l.nor),
+    idx: new Uint32Array(l.idx),
+  }));
+}
+
 async function main() {
   const [, , src, out] = process.argv;
   const prims = await load(src);
@@ -305,15 +420,21 @@ async function main() {
   console.log("axles", front.map((v) => v.toFixed(4)), rear.map((v) => v.toFixed(4)));
   const classify = classifyWithHubs({ front, rear });
 
+  // The number plate goes: a BMW roundel takes its place on the holder
+  const logo = await roundel(prims);
+  const kept = (p, c) =>
+    !PLATE_MESHES.includes(p.name) && !(p.name === "LicensePlate_Holder" && Math.max(...c.size) < 0.1);
+
   // Nodes: <group>_<material>, or just <group> when it has one material
   const nodes = new Map();
+  const add = (group, material, piece) => {
+    const key = `${group}|${material.name}`;
+    if (!nodes.has(key)) nodes.set(key, { group, material, pieces: [] });
+    nodes.get(key).pieces.push(piece);
+  };
   for (const p of prims)
-    for (const c of p.comps) {
-      const group = hint(p.name, classify(c, p.family));
-      const key = `${group}|${p.material.name}`;
-      if (!nodes.has(key)) nodes.set(key, { group, material: p.material, pieces: [] });
-      nodes.get(key).pieces.push({ p, tris: c.tris });
-    }
+    for (const c of p.comps) if (kept(p, c)) add(hint(p.name, classify(c, p.family)), p.material, { p, tris: c.tris });
+  for (const l of logo) add("taillight_logo", l.material, { p: l, tris: Array.from({ length: l.idx.length / 3 }, (_, i) => i) });
   const byGroup = {};
   for (const n of nodes.values()) (byGroup[n.group] ??= []).push(n);
   for (const [g, ns] of Object.entries(byGroup))
@@ -422,4 +543,6 @@ async function main() {
   console.log("wrote", out, (fs.statSync(out).size / 1e6).toFixed(2), "MB");
 }
 
-main();
+// Run as a script; required, it lends its loader to one-off inspection scripts
+if (require.main === module) main();
+else module.exports = { load, classifyBase };
