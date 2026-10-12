@@ -80,6 +80,15 @@ export default function ShowroomLayout({
             </span>
           ))}
           . Fan project, not affiliated with {bike.brand}.
+          {bike.modelCredit && (
+            <>
+              {" 3D model: "}
+              <a href={bike.modelCredit.url}>
+                “{bike.modelCredit.title}” by {bike.modelCredit.author}
+              </a>{" "}
+              ({bike.modelCredit.license}), modified.
+            </>
+          )}
         </p>
       </section>
     </div>

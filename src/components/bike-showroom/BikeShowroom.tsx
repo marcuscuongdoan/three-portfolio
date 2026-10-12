@@ -717,6 +717,20 @@ export default function BikeShowroom({ bike: def }: { bike: BikeDefinition }) {
           {def.credit.name}
         </a>{" "}
         ({def.year} model) · fan project, not affiliated with {def.brand}
+        {def.modelCredit && (
+          <>
+            {" · 3D model: "}
+            <a
+              href={def.modelCredit.url}
+              target="_blank"
+              rel="noreferrer"
+              className="pointer-events-auto underline"
+            >
+              “{def.modelCredit.title}” by {def.modelCredit.author}
+            </a>{" "}
+            ({def.modelCredit.license})
+          </>
+        )}
       </p>
 
       {/* Hologram intro: digital rain until the scan, and a way out */}

@@ -6,6 +6,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ["", 1],
     ["/africa-twin", 0.8],
     ["/mt-09", 0.8],
+    ["/r-ninet-pure", 0.8],
     ["/trial", 0.6],
     ["/legends/miss-fortune", 0.5],
   ];

@@ -1,5 +1,5 @@
 /**
- * Shared shape of a bike showroom page (/africa-twin, /mt-09): everything the
+ * Shared shape of a bike showroom page (/africa-twin, /mt-09, /r-ninet-pure): everything the
  * 3D scene and the page need to know about one bike — the GLB, how its meshes
  * group into parts, the facts shown for each part, where its lights and
  * exhaust are, and the page theme. One definition per bike lives next to this
@@ -258,6 +258,8 @@ export interface BikeDefinition {
   sources: Record<string, BikeSource>;
   // Footer credit for the specs: short name + key into `sources`
   credit: { name: string; source: string };
+  // The 3D model's author, when its licence asks for attribution
+  modelCredit?: { title: string; author: string; url: string; license: string };
   heroSpecs: [value: string, label: string][];
   explode: ExplodeSettings;
   lights: BikeLights;
