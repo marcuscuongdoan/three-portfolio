@@ -510,7 +510,7 @@ export default function BikeScene({
   onClickPart,
 }: BikeSceneProps) {
   const def = useBikeDef();
-  const { intro: INTRO, theme } = def;
+  const { intro: INTRO, theme, stage = 1 } = def;
   // Spec screens in the garage
   const screenTitle = `${def.modelLine.replace(def.brand, "").trim()}  ${def.title}`.toUpperCase();
   const screenLine = def.heroSpecs
@@ -602,7 +602,8 @@ export default function BikeScene({
       );
     }
     if (dof.current && bike) {
-      dofTarget.set(0, bike.groundOffset + 0.5, 0);
+      // Focus mid-height on the vehicle; a bigger one (stage) focuses higher
+      dofTarget.set(0, bike.groundOffset + 0.5 * stage, 0);
       dof.current.target = dofTarget;
       // Riding scenery or the parked garage: soft behind the bike
       const dofGoal = worldShown ? 3 : garageShown ? 3.4 : 0;
@@ -692,7 +693,8 @@ export default function BikeScene({
           pulseSpeed={0.3}
           blur
         />
-        <DepthOfField ref={dof} focusRange={3.2} bokehScale={0} />
+        {/* Sharp across the whole vehicle: wider for a bigger one (stage) */}
+        <DepthOfField ref={dof} focusRange={3.2 * stage ** 1.5} bokehScale={0} />
         {/* Only HDR highlights (the lit lamps) cross the threshold */}
         <Bloom ref={bloom} mipmapBlur luminanceThreshold={1.1} luminanceSmoothing={0.2} intensity={0} />
         <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
