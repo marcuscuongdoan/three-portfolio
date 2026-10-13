@@ -59,13 +59,6 @@ export const techStack: TechItem[] = [
 // Template project data
 export const projects: Project[] = [
   {
-    id: 1,
-    name: "VGIG Physical Concert",
-    description: "VGIG is an immersive platform that brings fans closer to music and the artists they love through interactive digital experiences.",
-    url: "https://vgig.bw.land",
-    image: "/images/about-vgig.webp"
-  },
-  {
     id: 2,
     name: "Defind",
     description: "Track and discover the most profitable crypto wallets and DeFi traders. Analyze wallet performance, find trending tokens, and copy successful trading strategies.",
@@ -78,13 +71,6 @@ export const projects: Project[] = [
     description: "Leverage the power of AI and expertly crafted marketing materials and promotional content to fast-track business growth, saving precious time and money.",
     url: "https://desygner.com",
     image: "/images/desygner.webp"
-  },
-  {
-    id: 4,
-    name: "XLD Finance",
-    description: "High-performance chain for stablecoins, payment, and onchain FX, with the vision of bringing all currencies onchain.",
-    url: "https://central.global",
-    image: "/images/xld.webp"
   },
   {
     id: 5,

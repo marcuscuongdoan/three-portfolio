@@ -11,6 +11,7 @@ import Companions from "@/components/owl-world/Companions";
 import HomeGrounds from "@/components/owl-world/HomeGrounds";
 import SkyDome, { FOG_COLOR, MOON_DIR } from "@/components/owl-world/SkyDome";
 import Fireflies from "@/components/owl-world/Fireflies";
+import Steam from "@/components/owl-world/steam";
 import { WaypointBeacon } from "@/components/owl-world/transit";
 import { WIND } from "@/components/owl-world/wind";
 import { ShadowMoon, ShadowSetup } from "@/components/owl-world/shadows";
@@ -297,6 +298,7 @@ export default function OwlScene() {
       )}
       <Fireflies />
       <WaypointBeacon />
+      <Steam />
       <WindClock />
       {/* A soft key on the owl where it hovers for the contact form */}
       <pointLight position={CONTACT_KEY} color="#ffd6a0" intensity={10} distance={9} decay={1.6} />

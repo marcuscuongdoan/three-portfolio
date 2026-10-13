@@ -6,7 +6,9 @@ import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import type { FlightSample } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
-import { playOwlCall } from "@/components/owl-world/owlSound";
+import { playOwlCall, playVent } from "@/components/owl-world/owlSound";
+import { nextIdleVent, ventSteam } from "@/components/owl-world/steam";
+import { OWL_PAINTS, paintOwl } from "@/components/owl-world/owlPaint";
 import { usePointerCursor } from "@/components/owl-world/Corridor";
 import { headAngles, OWL_Z, OwlPoser, pointerPoint } from "@/components/owl-world/owlPoser";
 
@@ -23,6 +25,19 @@ const _r = new THREE.Quaternion();
 export const CLICK_STRETCH_SPEED = 1.5;
 export const STRETCH_WINGBEATS = [0.55, 1.85, 4.55];
 export const clickWingbeats = () => STRETCH_WINGBEATS.map((t) => t / CLICK_STRETCH_SPEED);
+
+/** A clicked owl vents hard, and again (softer) as its wings sweep open */
+export function clickVent(owl: THREE.Object3D) {
+  ventSteam(owl, { strength: 1 });
+  ventSteam(owl, { strength: 0.45, delay: clickWingbeats()[1]! });
+  playVent();
+}
+
+/** Now and then an owl lets off a little steam by itself */
+export function idleVent(owl: THREE.Object3D) {
+  ventSteam(owl, { strength: 0.3 + Math.random() * 0.25, sparks: Math.random() < 0.6 });
+  playVent({ quiet: true, strength: 0.7 });
+}
 const _head = new THREE.Vector3();
 const _seen = new THREE.Vector3();
 
@@ -39,6 +54,8 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
       mesh.frustumCulled = false; // skinned bounds don't follow the flap
       (mesh.material as THREE.MeshStandardMaterial).envMapIntensity = 1.7;
     });
+    // The guide is charcoal; the companions get their own paint
+    paintOwl(scene, OWL_PAINTS.charcoal);
     return new OwlPoser(scene, animations);
   }, [scene, animations]);
 
@@ -51,6 +68,8 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
     cheer: false,
     // How settled on its perch the owl is this frame (clicks only count then)
     perch: 0,
+    // Seconds to the next idle puff of steam
+    vent: nextIdleVent(),
   });
   const [hovered, setHovered] = useState(false);
   const [sitting, setSitting] = useState(true);
@@ -95,6 +114,11 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
         });
 
         st.perch = sample.perch;
+        st.vent -= dt;
+        if (st.vent <= 0) {
+          st.vent = nextIdleVent();
+          idleVent(g);
+        }
         const nowSitting = sample.perch > 0.95;
         if (nowSitting !== sitting) setSitting(nowSitting);
         g.position.copy(sample.pos);
@@ -126,7 +150,10 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
         // Only a sitting owl answers; one in flight ignores the click
         if (state.current.perch < 0.95) return;
         e.stopPropagation();
-        if (poser.stretch(CLICK_STRETCH_SPEED)) playOwlCall({ pitch: 1, wingbeats: clickWingbeats() });
+        if (!poser.stretch(CLICK_STRETCH_SPEED)) return;
+        playOwlCall({ pitch: 1, wingbeats: clickWingbeats() });
+        clickVent(group.current!);
+        state.current.vent = nextIdleVent();
       }}
     >
       <primitive object={scene} />

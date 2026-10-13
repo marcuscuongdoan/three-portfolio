@@ -21,6 +21,19 @@ const SPACING = 3.5;
 const GATE_LEAD = 2.5;
 const WEB_START = -18;
 const LAB_START = -49;
+// Cards bob gently on the air
+export const cardBob = (seed: number, t: number) => Math.sin(t * 0.8 + seed) * 0.08;
+const cardPosition = (startZ: number, i: number): [number, number, number] => [
+  CORRIDOR_X + (i % 2 === 0 ? -1 : 1) * SIDE_OFFSET,
+  CORRIDOR_Y + 0.35,
+  startZ - i * SPACING,
+];
+const cardSeed = (startZ: number, i: number) => i * 1.9 + startZ;
+/** The top edge of the i-th web products card, and its bob (the companions sit on it) */
+export function webCardTop(i: number) {
+  const [x, y, z] = cardPosition(WEB_START, i);
+  return { pos: new THREE.Vector3(x, y + CARD_H / 2 + 0.045, z), seed: cardSeed(WEB_START, i) };
+}
 const FACE_ANGLE = 0.95;
 
 export function roundedRectGeometry(w: number, h: number, r: number) {
@@ -73,7 +86,7 @@ function FlightCard({ app, position, rotationY, seed }: { app: ShowcaseApp; posi
   useFrame(({ clock }, dt) => {
     const g = group.current;
     if (!g) return;
-    g.position.y = position[1] + Math.sin(clock.elapsedTime * 0.8 + seed) * 0.08;
+    g.position.y = position[1] + cardBob(seed, clock.elapsedTime);
     const s = THREE.MathUtils.damp(g.scale.x, hovered ? 1.07 : 1, 10, dt);
     g.scale.setScalar(s);
     edgeMat.current?.color.copy(accent).multiplyScalar(hovered ? 3.2 : 0.85);
@@ -146,8 +159,8 @@ function Row({ apps, startZ }: { apps: ShowcaseApp[]; startZ: number }) {
           <FlightCard
             key={app.id}
             app={app}
-            seed={i * 1.9 + startZ}
-            position={[CORRIDOR_X + side * SIDE_OFFSET, CORRIDOR_Y + 0.35, startZ - i * SPACING]}
+            seed={cardSeed(startZ, i)}
+            position={cardPosition(startZ, i)}
             rotationY={-side * FACE_ANGLE}
           />
         );

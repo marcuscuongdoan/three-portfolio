@@ -87,8 +87,8 @@ const GLIDE: [number, number] = [0.9, 2.2];
 const LEG_TUCK = 0.95;
 const LEG_REACH = 0.5;
 // Tail: dips and fans to brake, rudders into turns
-const TAIL_BRAKE = 0.4;
-const TAIL_FAN = 0.38;
+const TAIL_BRAKE = 0.65;
+const TAIL_FAN = 0.55;
 
 const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
 const wrapPi = (a: number) => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
@@ -163,6 +163,9 @@ export class OwlPoser {
   private shake = new Pulse();
   private shuffle = new Pulse();
   private blink = new Pulse();
+  // The tail bobbing as the owl settles after touching down
+  private settle = new Pulse();
+  private wasSitting = true;
   private nextShake = rand(9, 18);
   private nextShuffle = rand(6, 14);
   private nextBlink = rand(1.5, 4);
@@ -405,12 +408,29 @@ export class OwlPoser {
     this.turn(this.chest, OWL_Y, shake * 0.09);
 
     // --- Tail: rudders into turns, dips and fans to brake ------------------
+    // It pumps against each wingbeat (a beat behind it), sways and twists on
+    // the air while gliding, and when landing dips and fans wide, working up
+    // and down to balance; after touchdown it bobs a few times and settles
+    const nowSitting = sit > 0.95;
+    if (nowSitting && !this.wasSitting) this.settle.start(1.1);
+    this.wasSitting = nowSitting;
+    const settle = this.settle.step(dt);
     const brake = Math.max(p.land, p.hover * 0.5) * fly;
-    this.turn(this.tail, OWL_X, TAIL_BRAKE * brake - s * amp * 0.06);
-    this.turn(this.tail, OWL_Y, THREE.MathUtils.clamp(-this.turnRate * 0.18, -0.35, 0.35) * fly);
-    this.turn(this.tail, OWL_Z, THREE.MathUtils.clamp(-this.roll * 0.4, -0.3, 0.3) * fly);
-    const fan = (TAIL_FAN * brake + 0.06 * fly) * (1 + shake * 0.5);
-    for (const f of this.tailFeathers) this.turn(f.bone, OWL_Y, fan * f.spread * f.sign);
+    const glide = fly * (1 - this.flapWeight);
+    const pump = Math.sin(phi - 2.6) * amp * 0.24;
+    const balance = Math.sin(this.time * 7.5) * 0.14 * p.land * fly;
+    const bobDown = Math.sin(this.time * 13) * 0.22 * settle;
+    const sway = Math.sin(this.time * 1.3) * 0.13 * glide + Math.sin(this.time * 2.9 + 1) * 0.04 * fly;
+    this.turn(this.tail, OWL_X, TAIL_BRAKE * brake - s * amp * 0.06 + pump + balance + bobDown);
+    this.turn(this.tail, OWL_Y, THREE.MathUtils.clamp(-this.turnRate * 0.18, -0.35, 0.35) * fly + sway);
+    this.turn(this.tail, OWL_Z, THREE.MathUtils.clamp(-this.roll * 0.4, -0.3, 0.3) * fly + Math.sin(this.time * 0.9) * 0.07 * glide);
+    // Fanned to brake, opening and closing a little with each beat; the
+    // feathers flutter in the wind, the outer ones most
+    const fan = (TAIL_FAN * brake + 0.08 * fly + 0.18 * settle) * (1 + shake * 0.5) + Math.max(0, -s) * amp * 0.12;
+    for (const f of this.tailFeathers) {
+      this.turn(f.bone, OWL_Y, fan * f.spread * f.sign);
+      this.turn(f.bone, OWL_X, Math.sin(this.time * 11 + f.spread * 4 + f.sign) * 0.05 * f.spread * fly * (0.4 + p.speed * 0.4));
+    }
 
     // --- Legs: tucked back in flight, reaching for the perch on approach ---
     const reach = p.land * (1 - sit);

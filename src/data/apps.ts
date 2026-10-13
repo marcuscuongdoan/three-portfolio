@@ -21,10 +21,8 @@ export interface ShowcaseApp {
 const WEB_ACCENTS = ["#e07a8e", "#5b8fd6", "#9b7be0", "#4fb08a", "#e09a4f", "#d7699c"];
 
 const WEB_TAGLINES: Record<number, string> = {
-  1: "Immersive concert platform",
   2: "On-chain wallet analytics",
   3: "AI marketing design suite",
-  4: "Stablecoin & on-chain FX",
   5: "Game studio website",
   6: "Mental well-being community",
 };

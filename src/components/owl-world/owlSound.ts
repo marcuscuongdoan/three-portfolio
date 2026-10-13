@@ -107,6 +107,69 @@ function wingbeat(at: number, strength: number) {
   thump.stop(at + 0.1);
 }
 
+/**
+ * The clockwork venting: a servo whir and a run of ratchet ticks, then the
+ * hiss of steam. `quiet` (the idle puffs) only plays once audio has already
+ * been started by a click, and softer
+ */
+export function playVent({ strength = 1, quiet = false }: { strength?: number; quiet?: boolean } = {}) {
+  if (quiet && (!ctx || ctx.state !== "running")) return;
+  const { ctx: c, master, noise } = audio();
+  const now = c.currentTime + 0.01;
+  const level = (quiet ? 0.35 : 1) * strength;
+
+  if (!quiet) {
+    // Servo: a rising buzz through a low-pass
+    const servo = c.createOscillator();
+    servo.type = "sawtooth";
+    servo.frequency.setValueAtTime(170, now);
+    servo.frequency.exponentialRampToValueAtTime(430, now + 0.22);
+    const servoLp = c.createBiquadFilter();
+    servoLp.type = "lowpass";
+    servoLp.frequency.value = 1200;
+    const servoGain = c.createGain();
+    servoGain.gain.setValueAtTime(0, now);
+    servoGain.gain.linearRampToValueAtTime(0.05 * level, now + 0.03);
+    servoGain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+    servo.connect(servoLp).connect(servoGain).connect(master);
+    servo.start(now);
+    servo.stop(now + 0.3);
+    // Ratchet: short metallic ticks
+    for (let i = 0; i < 5; i++) {
+      const at = now + 0.04 + i * 0.038;
+      const tick = c.createBufferSource();
+      tick.buffer = noise;
+      const band = c.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = 3200 + i * 180;
+      band.Q.value = 9;
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.5 * level, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.025);
+      tick.connect(band).connect(g).connect(master);
+      tick.start(at, Math.random() * 0.8);
+      tick.stop(at + 0.03);
+    }
+  }
+
+  // Steam: high-passed noise, a sharp start and a long tail
+  const at = now + (quiet ? 0 : 0.2);
+  const hiss = c.createBufferSource();
+  hiss.buffer = noise;
+  hiss.loop = true;
+  const hp = c.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.setValueAtTime(3800, at);
+  hp.frequency.exponentialRampToValueAtTime(1800, at + 0.7);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(0.22 * level, at + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, at + 0.8);
+  hiss.connect(hp).connect(g).connect(master);
+  hiss.start(at, Math.random() * 0.5);
+  hiss.stop(at + 0.85);
+}
+
 export interface OwlCall {
   // 1 for the guide; the smaller owls call higher
   pitch?: number;

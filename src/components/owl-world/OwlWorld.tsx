@@ -183,7 +183,7 @@ const CAPTIONS: Record<number, { kicker: string; title: string; body: string; al
   [STOP_INDEX.web]: {
     kicker: "01 · Web products",
     title: "Shipped for real users",
-    body: "Client and product work in production: concerts, DeFi analytics, AI design tools, on-chain FX. Click a card to visit.",
+    body: "Client and product work in production: DeFi analytics, AI design tools, a game studio, a mental well-being community. Click a card to visit.",
     align: "left",
   },
   [STOP_INDEX.lab]: {

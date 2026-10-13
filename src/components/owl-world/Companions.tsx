@@ -5,29 +5,36 @@ import * as THREE from "three";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { CLICK_STRETCH_SPEED, clickWingbeats, OWL_URL } from "@/components/owl-world/Owl";
+import { CLICK_STRETCH_SPEED, clickVent, clickWingbeats, idleVent, OWL_URL } from "@/components/owl-world/Owl";
+import { nextIdleVent } from "@/components/owl-world/steam";
+import { OWL_PAINTS, paintOwl } from "@/components/owl-world/owlPaint";
 import { headAngles, OwlPoser, pointerPoint } from "@/components/owl-world/owlPoser";
 import { playOwlCall } from "@/components/owl-world/owlSound";
 import { usePointerCursor } from "@/components/owl-world/Corridor";
-import { LAST_STOP, MUSEUM_CENTER, MUSEUM_RADIUS, MUSEUM_WALL_STEP, STOP_INDEX } from "@/components/owl-world/flightPath";
+import { CORRIDOR_X, LAST_STOP, MUSEUM_CENTER, MUSEUM_RADIUS, MUSEUM_WALL_STEP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { HOUSE_POSITION, HOUSE_YAW } from "@/components/owl-world/HomeGrounds";
 import { MUSEUM_WALL_TOP } from "@/components/owl-world/Museum";
+import { cardBob, webCardTop } from "@/components/owl-world/Corridor";
 import { flight, guide } from "@/components/owl-world/owlStore";
 
 /**
  * Two smaller owls that keep the guide company. They sit on the cottage at
  * home, fly off when the tour starts, catch up with the guide for the flight
- * past the apps (flying either side of it), and land on the museum walls.
+ * past the apps (flying either side of it), rest on the web products sign
+ * while the guide stops there, and land on the museum walls.
  * Past the museum they leave again until the guide is home.
  */
 
-type Place = "home" | "museum" | "escort" | "away";
+type Place = "home" | "web" | "museum" | "escort" | "away";
+type PerchPlace = "home" | "web" | "museum";
 
 /** Which place the companions belong at for this scroll progress */
 function placeAt(p: number): Place {
   if (p < 0.12 || p > LAST_STOP - 0.12) return "home";
   if (Math.abs(p - STOP_INDEX.museum) < 0.45) return "museum";
-  if (p >= STOP_INDEX.web - 0.5 && p < STOP_INDEX.museum - 0.45) return "escort";
+  // A rest on the web products cards while the guide shows those off
+  if (Math.abs(p - STOP_INDEX.web) < 0.45) return "web";
+  if (p > STOP_INDEX.web && p < STOP_INDEX.museum - 0.45) return "escort";
   return "away";
 }
 
@@ -48,6 +55,8 @@ interface Spot {
   yaw: number;
   // Where it flies off to (and comes in from), out of shot
   away: THREE.Vector3;
+  // On a bobbing card: its bob seed
+  bob?: number;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -70,17 +79,32 @@ function wallSpot(wall: -1 | 1): Spot {
   return { pos, yaw: Math.PI - theta, away: pos.clone().addScaledVector(out, 26).add(new THREE.Vector3(wall * 8, 14, 0)) };
 }
 
+// Sitting on top of a web products card, facing back up the corridor
+function cardSpot(i: number): Spot {
+  const { pos, seed } = webCardTop(i);
+  const side = pos.x < CORRIDOR_X ? -1 : 1;
+  return {
+    pos,
+    yaw: yawToward(pos, new THREE.Vector3(CORRIDOR_X, pos.y, pos.z + 9)),
+    away: pos.clone().add(new THREE.Vector3(side * 8, 14, -26)),
+    bob: seed,
+  };
+}
+
 // One spot per companion in each place
-const SPOTS: Record<"home" | "museum", [Spot, Spot]> = {
+const SPOTS: Record<PerchPlace, [Spot, Spot]> = {
   home: [
     // On the little porch roof over the door, and on top of the garden lantern
     homeSpot([0.35, 3.06, 3.46], [-6, 15, -30]),
     homeSpot([-2.6, 2.6, 5.2], [8, 14, -32]),
   ],
+  web: [cardSpot(0), cardSpot(1)],
   museum: [wallSpot(-1), wallSpot(1)],
 };
 
-const SCALES = [0.95, 0.85];
+// Smaller than the guide, each in its own finish
+const SCALES = [0.7, 0.62];
+const PAINTS = [OWL_PAINTS.silver, OWL_PAINTS.white];
 // The second owl follows the first a beat later
 const STAGGER = 0.45;
 const TAKEOFF = 0.12;
@@ -122,12 +146,16 @@ class Companion {
   private to = new THREE.Vector3();
   private fromYaw = 0;
   private toYaw = 0;
+  // Bob seed of the card it is landing on / sitting on, if any
+  private toBob: number | null = null;
   private landing = false;
   private taking = false;
   private t = 0;
   private duration = 1;
   private delay = 0;
   private look = { yaw: 0, pitch: 0, target: 0, timer: 0 };
+  // Seconds to its next idle puff of steam
+  vent = nextIdleVent();
 
   constructor(model: THREE.Object3D, animations: THREE.AnimationClip[], index: number) {
     this.index = index;
@@ -157,7 +185,7 @@ class Companion {
   }
 
   private spotFor(place: Place) {
-    return place === "home" || place === "museum" ? SPOTS[place][this.index]! : null;
+    return place === "home" || place === "web" || place === "museum" ? SPOTS[place][this.index]! : null;
   }
 
   /** Join the guide's formation; from out of shot if it was away */
@@ -218,8 +246,10 @@ class Companion {
     if (arriving) {
       this.to.copy(arriving.pos);
       this.toYaw = arriving.yaw;
+      this.toBob = arriving.bob ?? null;
       this.landing = true;
     } else {
+      this.toBob = null;
       this.to.copy(leaving ? leaving.away : this.root.position.clone().add(new THREE.Vector3(0, 15, -25)));
       this.landing = false;
     }
@@ -238,6 +268,7 @@ class Companion {
     if (spot) {
       this.to.copy(spot.pos);
       this.toYaw = spot.yaw;
+      this.toBob = spot.bob ?? null;
       this.mode = "perched";
       this.root.visible = true;
     } else {
@@ -246,7 +277,9 @@ class Companion {
     }
   }
 
-  update(dt: number, place: Place, guideVel: THREE.Vector3, pointer: THREE.Vector3 | null) {
+  update(dt: number, time: number, place: Place, guideVel: THREE.Vector3, pointer: THREE.Vector3 | null) {
+    // A card perch rides the card up and down
+    const bob = this.toBob === null ? 0 : cardBob(this.toBob, time);
     if (this.place === null) {
       // First frame: just be there
       this.snapTo(place);
@@ -272,6 +305,7 @@ class Companion {
       this.t = Math.min(1, this.t + dt / this.duration);
       const e = THREE.MathUtils.smootherstep(this.t, 0, 1);
       bezier(this.from, this.ctrl, this.to, e, this.root.position);
+      this.root.position.y += bob * e;
       bezierTangent(this.from, this.ctrl, this.to, Math.min(e, 0.995), _tan);
       speed = 1.2 * Math.sin(Math.PI * this.t);
       // Nose along the flight line (the model faces -Z)
@@ -301,9 +335,15 @@ class Companion {
     if (this.mode === "perched") {
       perch = 1;
       this.root.position.copy(this.to);
+      this.root.position.y += bob;
       this.root.quaternion.setFromAxisAngle(UP, this.toYaw);
     }
     if (!this.root.visible) return;
+    this.vent -= dt;
+    if (this.vent <= 0) {
+      this.vent = nextIdleVent();
+      idleVent(this.root);
+    }
 
     // Sitting owls watch the pointer; once it has been still a while they go
     // back to glancing about on their own
@@ -324,9 +364,9 @@ class Companion {
     this.look.yaw = THREE.MathUtils.damp(this.look.yaw, wantYaw, 3.5, dt);
     this.look.pitch = THREE.MathUtils.damp(this.look.pitch, wantPitch, 3.5, dt);
 
-    const bob = this.poser.update(dt, { perch, hover: 0, land, speed, lookYaw: this.look.yaw, lookPitch: this.look.pitch });
+    const lift = this.poser.update(dt, { perch, hover: 0, land, speed, lookYaw: this.look.yaw, lookPitch: this.look.pitch });
     // Bob and talon lift are in model units; the companion is scaled
-    this.root.position.y += bob * this.scale;
+    this.root.position.y += lift * this.scale;
   }
 
   dispose() {
@@ -361,6 +401,7 @@ export default function Companions() {
         model.traverse((o) => {
           if ((o as THREE.Mesh).isMesh) o.frustumCulled = false;
         });
+        paintOwl(model, PAINTS[i]!);
         return new Companion(model, animations, i);
       }),
     [scene, animations],
@@ -368,7 +409,7 @@ export default function Companions() {
   useEffect(() => () => owls.forEach((o) => o.dispose()), [owls]);
 
   const pointerStill = useRef(POINTER_IDLE);
-  useFrame(({ camera, pointer }, delta) => {
+  useFrame(({ camera, pointer, clock }, delta) => {
     const dt = Math.min(delta, 0.1);
     const place = placeAt(flight.current);
     // The guide's velocity, for the escorts' heading
@@ -379,7 +420,7 @@ export default function Companions() {
     _lastPointer.copy(pointer);
     const watching = pointerStill.current < POINTER_IDLE;
     for (const owl of owls) {
-      owl.update(dt, place, _guideVel, watching ? pointerPoint(camera, pointer, owl.root.position, _pointerAt) : null);
+      owl.update(dt, clock.elapsedTime, place, _guideVel, watching ? pointerPoint(camera, pointer, owl.root.position, _pointerAt) : null);
     }
   });
 
@@ -399,6 +440,8 @@ export default function Companions() {
             e.stopPropagation();
             // The smaller the owl, the higher its call
             playOwlCall({ pitch: 1.18 + i * 0.14, wingbeats: clickWingbeats() });
+            clickVent(o.root);
+            o.vent = nextIdleVent();
           }}
         />
       ))}
