@@ -44,6 +44,8 @@ export const metadata: Metadata = {
     creator: "@carrynology",
   },
   category: "technology",
+  // The maker's own icon in the tab (the rest of the site uses the owl)
+  icons: { icon: "/logos/bmw.png", shortcut: "/logos/bmw.png", apple: "/logos/bmw.png" },
 };
 
 export const viewport: Viewport = {
