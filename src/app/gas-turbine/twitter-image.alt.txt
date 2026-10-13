@@ -1,0 +1,1 @@
+A packaged station-blackout gas turbine unit in 3D, its nine parts listed beside it, with a Simulate blackout control

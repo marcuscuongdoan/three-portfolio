@@ -1,15 +1,11 @@
-/* Scroll drives the flight: one snap point per stop */
+/* Scroll drives the flight. Snapping between sections is scripted
+   (useFlightScroll), so it can carry on in the direction of travel */
 html.owl-snap {
-  scroll-snap-type: y mandatory;
   overscroll-behavior-y: none;
   scrollbar-width: none;
 }
 html.owl-snap::-webkit-scrollbar {
   display: none;
-}
-/* Off while a nav click flies through several stops */
-html.owl-snap.owl-nosnap {
-  scroll-snap-type: none;
 }
 
 .owl-glass {

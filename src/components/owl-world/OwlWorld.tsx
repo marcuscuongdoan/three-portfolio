@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { useProgress } from "@react-three/drei";
 import { LAB_APPS, WEB_APPS } from "@/data/apps";
 import { LAST_STOP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
+import { TransitPill } from "@/components/owl-world/transit";
 import { flyTo, useFlightScroll } from "@/components/owl-world/useFlightScroll";
 import ContactCard from "@/components/owl-world/ContactCard";
 import LeaveModal from "@/components/owl-world/LeaveModal";
@@ -388,13 +389,19 @@ export default function OwlWorld() {
         <OwlScene />
       </div>
 
-      {/* One full-screen snap section per stop; they only carry the scroll */}
+      {/* One full-screen snap section per stop; they only carry the scroll.
+          The last is a "large viewport" screen tall so a phone can always
+          scroll all the way to it, whatever its address bar is doing */}
       <div aria-hidden className="relative z-10 pointer-events-none">
         {Array.from({ length: LAST_STOP + 1 }, (_, i) => (
-          // The museum and contact stops are two screens tall: they hold for a
-          // whole extra screen of scrolling, so landing there doesn't carry on
-          // straight into the next leg
-          <section key={i} id={`owl-stop-${i}`} className={`${HOLD_STOPS.has(i) ? "h-[200svh]" : "h-svh"} snap-start snap-always`} />
+          <Fragment key={i}>
+            <section data-snap id={`owl-stop-${i}`} className={i === LAST_STOP ? "h-lvh" : "h-svh"} />
+            {/* The museum and contact stops hold for an extra screen of
+                scrolling, so landing there doesn't carry straight on. It is
+                its own snap point: inside one tall section a phone's fling
+                would sail right through */}
+            {HOLD_STOPS.has(i) && <section data-snap className="h-svh" />}
+          </Fragment>
         ))}
       </div>
 
@@ -402,6 +409,7 @@ export default function OwlWorld() {
       <StopDots />
       <Overlays />
       <NextStep />
+      <TransitPill />
       <MailboxTooltip />
       <LeaveModal />
       <CvModal />

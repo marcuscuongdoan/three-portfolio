@@ -95,7 +95,7 @@ const labApps: ShowcaseApp[] = [
     description: "A packaged gas-turbine unit: open each part, then simulate a blackout and watch it pick up the safety buses.",
     url: "/gas-turbine",
     external: false,
-    image: null,
+    image: "/gas-turbine/opengraph-image.png",
     accent: "#e0a23a",
   },
   {
@@ -106,7 +106,7 @@ const labApps: ShowcaseApp[] = [
     description: "A League-inspired camp at dusk: pick a legend, watch them step up to the fire.",
     url: "/trial",
     external: false,
-    image: null,
+    image: "/trial/opengraph-image.png",
     accent: "#c89b3c",
   },
   {
@@ -117,7 +117,7 @@ const labApps: ShowcaseApp[] = [
     description: "Swap Miss Fortune's skins live on an animated 3D model, League of Legends client style.",
     url: "/legends/miss-fortune",
     external: false,
-    image: null,
+    image: "/legends/miss-fortune/opengraph-image.png",
     accent: "#0ac8b9",
   },
 ];

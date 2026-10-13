@@ -16,20 +16,12 @@ const IDLE_STRETCH_EVERY: [number, number] = [9, 15];
 // lifting by it puts them on top of whatever the owl perches on
 export const PERCH_LIFT = 0.155;
 
-// Wing chain, inner to outer: [bone base name, share of the flap, phase lag]
-const WING_CHAIN: [string, number, number][] = [
-  ["shoulder", 1, 0],
-  ["elbow", 0.55, 0.65],
-  ["wrist", 0.4, 1.2],
-];
-
 export const OWL_Z = new THREE.Vector3(0, 0, 1);
 const OWL_Y = new THREE.Vector3(0, 1, 0);
 const OWL_X = new THREE.Vector3(1, 0, 0);
 
 const _rootInv = new THREE.Quaternion();
 const _parent = new THREE.Quaternion();
-const _r = new THREE.Quaternion();
 const _r2 = new THREE.Quaternion();
 
 /** Rotate `bone` by `r`, given in the owl's own (model root) frame */
@@ -77,18 +69,93 @@ export interface PoseInput {
   lookPitch: number;
 }
 
+// --- Flight feel -----------------------------------------------------------
+// Share of a wingbeat spent on the (powered) downstroke; the rest is the
+// slower recovery upstroke, on which the wing folds
+const DOWNSTROKE = 0.4;
+// Folding on the upstroke: elbow and wrist sweep back (rad)
+const FOLD_ELBOW = 0.55;
+const FOLD_WRIST = 0.5;
+// Leading edge dips on the downstroke (rad)
+const PRONATE = 0.14;
+// Beats between glides, and how long a glide lasts (s)
+const BEATS: [number, number] = [3, 7];
+const GLIDE: [number, number] = [0.9, 2.2];
+// Legs: tucked back in flight, reaching forward to take the perch (rad)
+const LEG_TUCK = 0.95;
+const LEG_REACH = 0.5;
+// Tail: dips and fans to brake, rudders into turns
+const TAIL_BRAKE = 0.4;
+const TAIL_FAN = 0.38;
+
+const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
+const wrapPi = (a: number) => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
+
+const _q = new THREE.Quaternion();
+const _qa = new THREE.Quaternion();
+const _e = new THREE.Euler();
+
+/** A one-off movement with a soft start and end: 0 → 1 → 0 over `length` s */
+class Pulse {
+  t = -1;
+  length = 1;
+  start(length: number) {
+    this.t = 0;
+    this.length = length;
+  }
+  step(dt: number) {
+    if (this.t < 0) return 0;
+    this.t += dt / this.length;
+    if (this.t >= 1) {
+      this.t = -1;
+      return 0;
+    }
+    return Math.sin(Math.PI * this.t);
+  }
+  get running() {
+    return this.t >= 0;
+  }
+}
+
 export class OwlPoser {
   readonly root: THREE.Object3D;
   private mixer: THREE.AnimationMixer;
   private emote: THREE.AnimationAction;
   private clipDuration: number;
-  private wings: { sign: number; bones: { bone: THREE.Object3D; share: number; lag: number }[] }[];
+  private wings: { sign: number; shoulder: THREE.Object3D; elbow: THREE.Object3D; wrist: THREE.Object3D }[];
   private head: THREE.Object3D;
+  private neck: THREE.Object3D;
+  private chest: THREE.Object3D;
+  private tail: THREE.Object3D;
+  private tailFeathers: { bone: THREE.Object3D; sign: number; spread: number }[];
+  private legs: THREE.Object3D[];
+  private ears: { bone: THREE.Object3D; sign: number }[];
+  private eyes: { bone: THREE.Object3D; base: THREE.Vector3 }[];
   private touched: THREE.Object3D[];
   private base: THREE.Quaternion[];
   private stretching = false;
   private nextStretch: number;
   phase: number;
+
+  // Flight rhythm: flap ↔ glide
+  private flapWeight = 1;
+  private beatsLeft = 4;
+  private gliding = 0;
+  private lastCycle = 0;
+  // Body attitude, from the root's own orientation
+  private lastYaw: number | null = null;
+  private turnRate = 0;
+  private pitch = 0;
+  private roll = 0;
+  // Idle life while sitting
+  private tilt = { value: 0, target: 0, timer: 2 };
+  private shake = new Pulse();
+  private shuffle = new Pulse();
+  private blink = new Pulse();
+  private nextShake = rand(9, 18);
+  private nextShuffle = rand(6, 14);
+  private nextBlink = rand(1.5, 4);
+  private time = 0;
 
   constructor(root: THREE.Object3D, animations: THREE.AnimationClip[], seed = 0) {
     this.root = root;
@@ -102,17 +169,42 @@ export class OwlPoser {
     this.nextStretch = 6 + seed * 4;
 
     const bone = (name: string) => root.getObjectByName(name)!;
-    // Which wing is on +X decides the sign that lifts it
     root.updateMatrixWorld(true);
-    this.wings = (["l", "r"] as const).map((side) => {
-      const wrist = bone(`wrist_${side}`);
-      const sign = Math.sign(root.worldToLocal(wrist.getWorldPosition(new THREE.Vector3())).x) || 1;
-      return { sign, bones: WING_CHAIN.map(([n, share, lag]) => ({ bone: bone(`${n}_${side}`), share, lag })) };
-    });
+    // Which side of the body a bone is on, in the owl's own frame
+    const sideOf = (b: THREE.Object3D) => Math.sign(root.worldToLocal(b.getWorldPosition(new THREE.Vector3())).x) || 1;
+    this.wings = (["l", "r"] as const).map((s) => ({
+      sign: sideOf(bone(`wrist_${s}`)),
+      shoulder: bone(`shoulder_${s}`),
+      elbow: bone(`elbow_${s}`),
+      wrist: bone(`wrist_${s}`),
+    }));
     this.head = bone("head");
+    this.neck = bone("neck");
+    this.chest = bone("chest");
+    this.tail = bone("tail");
+    // Outer tail feathers fan furthest
+    const spreadOf: Record<string, number> = { a: 0.45, b: 0.7, c: 1, main: 0.25 };
+    this.tailFeathers = (["a", "b", "c", "main"] as const).flatMap((k) =>
+      (["l", "r"] as const).map((s) => {
+        const b = bone(`tailFeather_${k}_${s}`);
+        return { bone: b, sign: sideOf(b), spread: spreadOf[k]! };
+      }),
+    );
+    this.legs = [bone("upleg_l"), bone("upleg_r")];
+    this.ears = (["l", "r"] as const).map((s) => ({ bone: bone(`ear_${s}`), sign: sideOf(bone(`ear_${s}`)) }));
+    this.eyes = ["eye_l", "eye_r", "pupil_l", "pupil_r"].map((n) => ({ bone: bone(n), base: bone(n).scale.clone() }));
     // Bones edited after the mixer; their pre-edit values are put back before
     // the next mixer update (it skips writing values that didn't change)
-    this.touched = [this.head, ...this.wings.flatMap((w) => w.bones.map((b) => b.bone))];
+    this.touched = [
+      this.chest,
+      this.neck,
+      this.head,
+      this.tail,
+      ...this.tailFeathers.map((f) => f.bone),
+      ...this.legs,
+      ...this.ears.map((e) => e.bone),
+      ...this.wings.flatMap((w) => [w.shoulder, w.elbow, w.wrist]),
+    ];
     this.base = this.touched.map((b) => b.quaternion.clone());
   }
 
@@ -121,10 +213,31 @@ export class OwlPoser {
     this.nextStretch = 0;
   }
 
+  /** Rotate a bone about one of the owl's own axes */
+  private turn(bone: THREE.Object3D, axis: THREE.Vector3, angle: number) {
+    if (Math.abs(angle) < 1e-4) return;
+    rotateInOwlSpace(bone, this.root, _qa.setFromAxisAngle(axis, angle));
+  }
+
+  /** Pitch, roll and turn rate of the body, from the root's world orientation */
+  private readAttitude(dt: number) {
+    this.root.getWorldQuaternion(_q);
+    _e.setFromQuaternion(_q, "YXZ");
+    const yawRate = this.lastYaw === null ? 0 : wrapPi(_e.y - this.lastYaw) / Math.max(dt, 1e-3);
+    this.lastYaw = _e.y;
+    const k = 1 - Math.exp(-dt * 5);
+    this.turnRate += (THREE.MathUtils.clamp(yawRate, -3, 3) - this.turnRate) * k;
+    this.pitch += (_e.x - this.pitch) * k;
+    this.roll += (_e.z - this.roll) * k;
+  }
+
   /** Pose for this frame; returns the height offset to add to the owl's position */
   update(dt: number, p: PoseInput) {
     const { emote } = this;
     const fly = 1 - p.perch;
+    const sit = p.perch;
+    this.time += dt;
+    this.readAttitude(dt);
 
     // (Re)start the held sitting pose — also after a StrictMode remount
     if (!emote.isScheduled()) {
@@ -133,8 +246,8 @@ export class OwlPoser {
       emote.time = EMOTE_HOLD;
     }
     // Sitting: hold the folded frame, now and then play the stretch
-    emote.setEffectiveWeight(p.perch);
-    if (p.perch > 0.98 && !this.stretching) {
+    emote.setEffectiveWeight(sit);
+    if (sit > 0.98 && !this.stretching) {
       this.nextStretch -= dt;
       if (this.nextStretch <= 0) {
         this.stretching = true;
@@ -142,7 +255,7 @@ export class OwlPoser {
         emote.time = EMOTE_HOLD;
       }
     }
-    if (this.stretching && (emote.time >= this.clipDuration - 0.02 || p.perch < 0.5)) {
+    if (this.stretching && (emote.time >= this.clipDuration - 0.02 || sit < 0.5)) {
       this.stretching = false;
       emote.paused = true;
       emote.time = EMOTE_HOLD;
@@ -154,33 +267,117 @@ export class OwlPoser {
     this.mixer.update(dt);
     this.touched.forEach((b, i) => this.base[i]!.copy(b.quaternion));
 
-    // Flap: faster and wider when hovering, calmer in a cruise, slow deep
-    // braking beats when flaring to land
+    // --- Rhythm: a few beats, then a glide (longer when descending) --------
+    const cruising = fly > 0.9 && p.hover < 0.3 && p.land < 0.05;
     const cruiseFreq = THREE.MathUtils.lerp(2.1, 3.1, p.hover) + Math.min(1.2, p.speed * 0.9);
     const freq = THREE.MathUtils.lerp(cruiseFreq, 1.5, p.land);
-    this.phase += dt * freq * Math.PI * 2;
-    const amp = fly * THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.5, 0.72, p.hover), 0.95, p.land);
-    // A slight dihedral so the downstroke doesn't sweep below the body
-    const lift = fly * 0.12;
-    for (const w of this.wings) {
-      for (const { bone, share, lag } of w.bones) {
-        const a = (Math.sin(this.phase - lag) * amp + lift) * share * w.sign;
-        if (Math.abs(a) < 1e-4) continue;
-        _r.setFromAxisAngle(OWL_Z, a);
-        rotateInOwlSpace(bone, this.root, _r);
+    if (this.gliding > 0) {
+      this.gliding -= dt;
+      if (!cruising) this.gliding = 0;
+      if (this.gliding <= 0) this.beatsLeft = Math.round(rand(...BEATS));
+    } else {
+      this.phase += dt * freq * Math.PI * 2;
+      const cycle = Math.floor(this.phase / (Math.PI * 2));
+      if (cycle !== this.lastCycle) {
+        this.lastCycle = cycle;
+        this.beatsLeft--;
+        if (this.beatsLeft <= 0 && cruising) this.gliding = rand(...GLIDE) * (this.pitch < -0.12 ? 1.6 : 1);
+        if (this.beatsLeft <= 0 && !cruising) this.beatsLeft = Math.round(rand(...BEATS));
       }
     }
+    this.flapWeight = THREE.MathUtils.damp(this.flapWeight, this.gliding > 0 ? 0 : 1, 6, dt);
 
-    if (p.perch > 0.01 && (p.lookYaw !== 0 || p.lookPitch !== 0)) {
-      _r.setFromAxisAngle(OWL_Y, p.lookYaw * p.perch);
-      _r2.setFromAxisAngle(OWL_X, p.lookPitch * p.perch);
-      _r.multiply(_r2);
-      rotateInOwlSpace(this.head, this.root, _r);
+    // --- Wingbeat: quick downstroke, slower folding upstroke ---------------
+    // u: 0..1 through the beat; s: +1 wings up … -1 wings down
+    const u = (((this.phase / (Math.PI * 2)) % 1) + 1) % 1;
+    const down = u < DOWNSTROKE;
+    const s = down ? Math.cos((Math.PI * u) / DOWNSTROKE) : -Math.cos((Math.PI * (u - DOWNSTROKE)) / (1 - DOWNSTROKE));
+    const fold = down ? 0 : Math.sin((Math.PI * (u - DOWNSTROKE)) / (1 - DOWNSTROKE));
+    const pronate = down ? Math.sin((Math.PI * u) / DOWNSTROKE) : 0;
+    const amp = fly * THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.5, 0.72, p.hover), 0.95, p.land) * this.flapWeight;
+    // Gliding wings hold a little raised and ride the air
+    const glideHold = fly * (1 - this.flapWeight) * (0.16 + Math.sin(this.time * 1.7) * 0.03);
+    // A slight dihedral so the downstroke doesn't sweep below the body
+    const dihedral = fly * 0.12;
+    const wingFold = fly * fold * this.flapWeight;
+    // Wing shuffle while sitting: a quick lift and settle
+    const shuffle = this.shuffle.step(dt) * sit;
+    for (const w of this.wings) {
+      // Lift is about the owl's forward axis; sweep (fold) about its up axis
+      this.turn(w.shoulder, OWL_Z, (s * amp + glideHold + dihedral) * w.sign);
+      this.turn(w.shoulder, OWL_X, -PRONATE * pronate * amp);
+      this.turn(w.shoulder, OWL_Z, shuffle * 0.22 * w.sign);
+      // The outer wing trails the inner a touch, like it has weight
+      const lag = Math.sin(this.phase - 0.9) * amp;
+      this.turn(w.elbow, OWL_Z, (lag * 0.45 + dihedral * 0.4) * w.sign);
+      this.turn(w.elbow, OWL_Y, -FOLD_ELBOW * wingFold * w.sign);
+      this.turn(w.wrist, OWL_Z, Math.sin(this.phase - 1.5) * amp * 0.35 * w.sign);
+      this.turn(w.wrist, OWL_Y, -FOLD_WRIST * wingFold * w.sign);
     }
+
+    // --- Body: bobs against the wings; shakes now and then when sitting ----
+    this.turn(this.chest, OWL_X, -s * amp * 0.12);
+    if (sit > 0.98 && !this.stretching) {
+      this.nextShake -= dt;
+      if (this.nextShake <= 0 && !this.shake.running) {
+        this.shake.start(0.7);
+        this.nextShake = rand(12, 24);
+      }
+      this.nextShuffle -= dt;
+      if (this.nextShuffle <= 0 && !this.shuffle.running) {
+        this.shuffle.start(0.6);
+        this.nextShuffle = rand(8, 16);
+      }
+    }
+    const shake = this.shake.step(dt) * Math.sin(this.time * 38) * sit;
+    this.turn(this.chest, OWL_Y, shake * 0.09);
+
+    // --- Tail: rudders into turns, dips and fans to brake ------------------
+    const brake = Math.max(p.land, p.hover * 0.5) * fly;
+    this.turn(this.tail, OWL_X, TAIL_BRAKE * brake - s * amp * 0.06);
+    this.turn(this.tail, OWL_Y, THREE.MathUtils.clamp(-this.turnRate * 0.18, -0.35, 0.35) * fly);
+    this.turn(this.tail, OWL_Z, THREE.MathUtils.clamp(-this.roll * 0.4, -0.3, 0.3) * fly);
+    const fan = (TAIL_FAN * brake + 0.06 * fly) * (1 + shake * 0.5);
+    for (const f of this.tailFeathers) this.turn(f.bone, OWL_Y, fan * f.spread * f.sign);
+
+    // --- Legs: tucked back in flight, reaching for the perch on approach ---
+    const reach = p.land * (1 - sit);
+    for (const leg of this.legs) this.turn(leg, OWL_X, (-LEG_TUCK * fly * (1 - p.land) + LEG_REACH * reach) * (1 - sit));
+
+    // --- Head: level and looking into turns in flight; curious when sitting
+    this.tilt.timer -= dt;
+    if (this.tilt.timer <= 0) {
+      // An owl's head tilt: often, briefly, either way
+      this.tilt.target = this.tilt.target === 0 && Math.random() < 0.6 ? rand(0.18, 0.38) * (Math.random() < 0.5 ? -1 : 1) : 0;
+      this.tilt.timer = this.tilt.target === 0 ? rand(2, 6) : rand(0.8, 2);
+    }
+    this.tilt.value = THREE.MathUtils.damp(this.tilt.value, this.tilt.target, 5, dt);
+    // Flying: undo most of the body's roll and pitch so the head stays level
+    this.turn(this.neck, OWL_Z, -this.roll * 0.75 * fly);
+    this.turn(this.neck, OWL_X, -THREE.MathUtils.clamp(this.pitch, -0.8, 0.8) * 0.55 * fly);
+    this.turn(this.neck, OWL_Y, THREE.MathUtils.clamp(this.turnRate * 0.3, -0.5, 0.5) * fly);
+    // Sitting: watch the pointer (from the caller), tilt now and then, shake
+    if (sit > 0.01) {
+      this.turn(this.head, OWL_Y, (p.lookYaw + shake * 0.15) * sit);
+      this.turn(this.head, OWL_X, p.lookPitch * sit);
+      this.turn(this.head, OWL_Z, this.tilt.value * sit);
+    }
+    // Ears prick up a little when the head tilts or turns
+    const prick = (Math.abs(this.tilt.value) * 0.6 + Math.abs(p.lookYaw) * 0.15) * sit;
+    for (const ear of this.ears) this.turn(ear.bone, OWL_Z, prick * 0.5 * ear.sign);
+
+    // --- Blink: the eyes shrink shut for a moment, every few seconds -------
+    this.nextBlink -= dt;
+    if (this.nextBlink <= 0 && !this.blink.running) {
+      this.blink.start(0.16);
+      this.nextBlink = Math.random() < 0.2 ? 0.25 : rand(2.5, 6); // sometimes a double blink
+    }
+    const shut = 1 - this.blink.step(dt) * 0.85;
+    for (const eye of this.eyes) eye.bone.scale.copy(eye.base).multiplyScalar(shut);
 
     // The body rises on the downstroke; the talons come down onto the perch
     // over the approach, not at touchdown
-    return Math.cos(this.phase) * 0.035 * fly * (1 - p.land) + PERCH_LIFT * Math.max(p.perch, p.land);
+    return -s * amp * 0.05 * (1 - p.land) + PERCH_LIFT * Math.max(sit, p.land);
   }
 
   dispose() {

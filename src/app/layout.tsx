@@ -31,7 +31,7 @@ export const metadata: Metadata = {
         url: "/og-image.png", // You'll need to add this image to your public folder
         width: 1200,
         height: 630,
-        alt: "Marcus Portfolio - 3D Character Showcase",
+        alt: "A metal owl perched by a cottage at night, welcoming visitors to Marcus's portfolio",
       },
     ],
   },

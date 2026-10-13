@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { CONTACT_POINT } from "@/components/owl-world/flightPath";
@@ -147,45 +147,37 @@ function Sky() {
   );
 }
 
-// Low-poly clouds: moonlit on top, darker underneath, a silver rim against
-// the sky. Their surface slowly billows (vertex shader), every puff breathes,
+// Soft clouds: every puff is a pair of camera-facing sprites painted with a
+// blurry blob — a darker, wider one underneath and a moonlit one on top — so
+// the clouds read as soft volumes with no hard edges. Every puff breathes,
 // and the valley clouds drift downwind and wrap round
-const CLOUD_TIME = { value: 0 };
 const DRIFT_MIN_X = -130;
 const DRIFT_MAX_X = 110;
 
-function makeCloudMaterial() {
-  const m = new THREE.MeshStandardMaterial({ color: "#5a5f7c", emissive: "#14172e", emissiveIntensity: 0.6, roughness: 1, flatShading: true });
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uCloudTime = CLOUD_TIME;
-    shader.uniforms.uRim = { value: new THREE.Color("#b9c2e6") };
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nuniform float uCloudTime;")
-      .replace(
-        "#include <begin_vertex>",
-        /* glsl */ `#include <begin_vertex>
-        {
-          vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz;
-          float b = sin(uCloudTime * 0.55 + wp.x * 0.45 + wp.y * 0.7)
-                  * cos(uCloudTime * 0.4 + wp.z * 0.5 - wp.y * 0.3);
-          transformed += normal * b * 0.11;
-        }`,
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform vec3 uRim;")
-      .replace(
-        "#include <emissivemap_fragment>",
-        /* glsl */ `#include <emissivemap_fragment>
-        {
-          vec3 wN = inverseTransformDirection(normal, viewMatrix);
-          diffuseColor.rgb *= mix(0.5, 1.3, wN.y * 0.5 + 0.5);
-          float rim = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
-          totalEmissiveRadiance += uRim * pow(rim, 3.0) * (0.35 + 0.65 * max(wN.y, 0.0));
-        }`,
-      );
-  };
-  m.customProgramCacheKey = () => "owl-cloud";
-  return m;
+/** A soft, lumpy blob that fades to nothing at its edge */
+function makePuffTexture() {
+  const S = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = S;
+  const ctx = canvas.getContext("2d")!;
+  const rand = mulberry32(19);
+  // Overlapping soft circles give it a cauliflower edge rather than a disc
+  for (let i = 0; i < 14; i++) {
+    const a = rand() * Math.PI * 2;
+    const d = rand() * S * 0.16;
+    const x = S / 2 + Math.cos(a) * d;
+    const y = S / 2 + Math.sin(a) * d * 0.8;
+    const r = S * (0.2 + rand() * 0.16);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, "rgba(255,255,255,0.42)");
+    g.addColorStop(0.55, "rgba(255,255,255,0.2)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 type Cloud = {
@@ -195,6 +187,10 @@ type Cloud = {
   speed: number;
   puffs: { p: [number, number, number]; r: number; phase: number }[];
 };
+
+// Sprite size per unit of puff radius, and how far the dark layer sits below
+const PUFF_SIZE = 3.1;
+const UNDER_DROP = 0.35;
 
 function Clouds() {
   const group = useRef<THREE.Group>(null);
@@ -229,13 +225,28 @@ function Clouds() {
     return list;
   }, []);
 
-  const material = useMemo(() => makeCloudMaterial(), []);
+  const mats = useMemo(() => {
+    const map = makePuffTexture();
+    const common = { map, transparent: true, depthWrite: false, fog: true };
+    return {
+      map,
+      under: new THREE.SpriteMaterial({ ...common, color: "#262b4d", opacity: 0.7 }),
+      top: new THREE.SpriteMaterial({ ...common, color: "#a9b3e2", opacity: 0.62 }),
+    };
+  }, []);
+  useEffect(
+    () => () => {
+      mats.map.dispose();
+      mats.under.dispose();
+      mats.top.dispose();
+    },
+    [mats],
+  );
 
   useFrame(({ clock }) => {
     const g = group.current;
     if (!g) return;
     const t = clock.elapsedTime;
-    CLOUD_TIME.value = t;
     g.children.forEach((child, i) => {
       const cl = clouds[i]!;
       if (cl.speed > 0) {
@@ -246,12 +257,12 @@ function Clouds() {
         child.position.x = cl.pos[0] + Math.sin(t * 0.06 + i * 1.7) * 2.5;
       }
       child.position.y = cl.pos[1] + Math.sin(t * 0.2 + i) * 0.35;
-      // Every puff swells and settles on its own beat
-      child.children.forEach((puff, j) => {
-        const p = cl.puffs[j]!;
-        const breathe = 1 + Math.sin(t * 0.45 + p.phase) * 0.07;
-        puff.scale.set(p.r * breathe, p.r * 0.72 * (2 - breathe), p.r * breathe);
-        puff.rotation.y = t * 0.03 + p.phase;
+      // Every puff swells and settles on its own beat (two sprites a puff)
+      child.children.forEach((sprite, k) => {
+        const p = cl.puffs[k >> 1]!;
+        const breathe = 1 + Math.sin(t * 0.45 + p.phase) * 0.08;
+        const size = p.r * PUFF_SIZE * (k % 2 === 0 ? 1.15 : 1);
+        sprite.scale.set(size * breathe, size * 0.72 * (2 - breathe), 1);
       });
     });
   });
@@ -260,11 +271,10 @@ function Clouds() {
     <group ref={group}>
       {clouds.map((cl, i) => (
         <group key={i} position={cl.pos} scale={cl.scale}>
-          {cl.puffs.map(({ p, r }, j) => (
-            <mesh key={j} material={material} position={p} scale={[r, r * 0.72, r]}>
-              <icosahedronGeometry args={[1, 2]} />
-            </mesh>
-          ))}
+          {cl.puffs.flatMap(({ p, r }, j) => [
+            <sprite key={`u${j}`} material={mats.under} position={[p[0], p[1] - UNDER_DROP * r, p[2] - 0.05]} scale={[r * PUFF_SIZE * 1.15, r * PUFF_SIZE * 0.8, 1]} />,
+            <sprite key={`t${j}`} material={mats.top} position={[p[0], p[1] + 0.1 * r, p[2]]} scale={[r * PUFF_SIZE, r * PUFF_SIZE * 0.72, 1]} />,
+          ])}
         </group>
       ))}
     </group>
