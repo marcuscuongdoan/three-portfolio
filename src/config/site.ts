@@ -9,3 +9,7 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://marcus-thr
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "G-4MZBL281P7";
 // Only production builds report, so local dev doesn't pollute the numbers
 export const ANALYTICS_ENABLED = process.env.NODE_ENV === "production" && GA_ID !== "";
+
+// The CV the mailbox on the homepage hands out (a file in public/)
+export const CV_URL = "/DOAN_MANH_CUONG_FRONTEND_ENGINEER.docx";
+export const CV_FILENAME = "DOAN_MANH_CUONG_FRONTEND_ENGINEER.docx";

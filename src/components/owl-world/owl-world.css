@@ -1,0 +1,26 @@
+/* Scroll drives the flight: one snap point per stop */
+html.owl-snap {
+  scroll-snap-type: y mandatory;
+  overscroll-behavior-y: none;
+  scrollbar-width: none;
+}
+html.owl-snap::-webkit-scrollbar {
+  display: none;
+}
+/* Off while a nav click flies through several stops */
+html.owl-snap.owl-nosnap {
+  scroll-snap-type: none;
+}
+
+.owl-glass {
+  background: color-mix(in srgb, #10153a 62%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow: 0 18px 50px -20px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+
+/* Text set straight on the 3D scene */
+.owl-ink {
+  text-shadow: 0 1px 20px rgb(6 9 28 / 0.9), 0 0 3px rgb(6 9 28 / 0.7);
+}

@@ -30,6 +30,16 @@
   --color-brown-700: #4F4943;
   --color-brown-600: #625B54;
 
+  /* Moonlit palette (the owl homepage) */
+  --color-night: #0a0e22;
+  --color-ink: #161b3a;
+  --color-moon-50: #f4ecdc;
+  --color-moon-100: #e4dac6;
+  --color-moon-200: #c9c0b0;
+  --color-moon-400: #9a93a6;
+  --color-lantern: #f2c879;
+  --color-lantern-soft: #f7d99c;
+
   /* League of Legends palette (used under /legends) */
   --font-lol: var(--font-lol-display), serif;
   --color-lol-void: #010A13;
