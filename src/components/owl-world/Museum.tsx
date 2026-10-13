@@ -7,7 +7,7 @@ import { LAB_APPS, ShowcaseApp } from "@/data/apps";
 import { MUSEUM_CENTER, MUSEUM_RADIUS, MUSEUM_WALL_STEP, MUSEUM_WALLS, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { makeFrameArt, makeSign } from "@/components/owl-world/cardTexture";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
-import { usePointerCursor } from "@/components/owl-world/Corridor";
+import { roundedRectGeometry, usePointerCursor } from "@/components/owl-world/Corridor";
 
 /**
  * An open-air gallery of the 3D lab: three walls on an arc in front of the
@@ -20,9 +20,18 @@ const WALL_T = 0.4;
 // Top of the cornice, where the companion owls perch
 export const MUSEUM_WALL_TOP = WALL_H + 0.21;
 const WALL_W = 2 * MUSEUM_RADIUS * Math.sin(MUSEUM_WALL_STEP / 2);
-const ART = 1.2;
+// A museum hang: a moulded gold frame, a cream mat with a thin gold fillet
+// round the picture, and a soft shadow on the wall behind
 const FRAME = 1.42;
+const FRAME_INNER = 1.2;
+const MAT = 1.21;
+const ART = 0.98;
+const FILLET = 0.035;
 const GLOW = 1.6;
+const PICTURE_LIGHT = new THREE.Color("#ffe2b8");
+// On hover the picture rises this far in front of its mat (m), standing
+// proud of the frame as a raised block — it doesn't grow past the frame
+const POP_LIFT = 0.16;
 const TOP_ROW = 3.55;
 const BOTTOM_ROW = 1.82;
 const COL = 0.86;
@@ -44,32 +53,117 @@ const COLORS = {
   inlay: "#b9a88f",
 };
 
+// Rounded corners, getting tighter from the frame inward so every layer
+// sits evenly inside the one round it
+const RADIUS = { glow: 0.24, frame: 0.17, frameInner: 0.11, back: 0.13, mat: 0.1, fillet: 0.075, art: 0.06 };
+
+/** A rounded square outline (centred), as a Shape or as a hole Path */
+function roundedSquare<T extends THREE.Path>(path: T, size: number, r: number) {
+  const h = size / 2;
+  path.moveTo(-h + r, -h);
+  path.lineTo(h - r, -h);
+  path.quadraticCurveTo(h, -h, h, -h + r);
+  path.lineTo(h, h - r);
+  path.quadraticCurveTo(h, h, h - r, h);
+  path.lineTo(-h + r, h);
+  path.quadraticCurveTo(-h, h, -h, h - r);
+  path.lineTo(-h, -h + r);
+  path.quadraticCurveTo(-h, -h, -h + r, -h);
+  return path;
+}
+
+/** A rounded square ring between two sizes */
+function roundedRing(outer: number, rOuter: number, inner: number, rInner: number) {
+  const shape = roundedSquare(new THREE.Shape(), outer, rOuter);
+  shape.holes.push(roundedSquare(new THREE.Path(), inner, rInner));
+  return shape;
+}
+
+// Frame pieces, shared by every artwork
+let frameParts: {
+  moulding: THREE.ExtrudeGeometry;
+  back: THREE.BufferGeometry;
+  mat: THREE.BufferGeometry;
+  fillet: THREE.ShapeGeometry;
+  art: THREE.BufferGeometry;
+  sides: THREE.ExtrudeGeometry;
+  shadow: THREE.CanvasTexture;
+} | null = null;
+function getFrameParts() {
+  if (frameParts) return frameParts;
+  // Rounded moulding: a bevelled extrusion of the frame's ring
+  const moulding = new THREE.ExtrudeGeometry(roundedRing(FRAME - 0.04, RADIUS.frame, FRAME_INNER + 0.04, RADIUS.frameInner), {
+    depth: 0.05,
+    bevelEnabled: true,
+    bevelThickness: 0.025,
+    bevelSize: 0.02,
+    bevelSegments: 3,
+    curveSegments: 10,
+  });
+  // A soft shadow the frame casts on the wall
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.filter = "blur(10px)";
+  g.fillStyle = "rgba(0,0,0,0.75)";
+  g.beginPath();
+  g.roundRect(22, 26, 84, 84, 14);
+  g.fill();
+  frameParts = {
+    moulding,
+    back: roundedRectGeometry(FRAME - 0.02, FRAME - 0.02, RADIUS.back),
+    mat: roundedRectGeometry(MAT, MAT, RADIUS.mat),
+    fillet: new THREE.ShapeGeometry(roundedRing(ART + FILLET, RADIUS.fillet, ART, RADIUS.art), 10),
+    art: roundedRectGeometry(ART, ART, RADIUS.art),
+    // Unit-deep rounded block, stretched to the lift on hover
+    sides: new THREE.ExtrudeGeometry(roundedSquare(new THREE.Shape(), ART + FILLET, RADIUS.fillet), { depth: 1, bevelEnabled: false, curveSegments: 10 }),
+    shadow: new THREE.CanvasTexture(c),
+  };
+  return frameParts;
+}
+
 function ringGeometry(outer: number, inner: number) {
-  const s = new THREE.Shape();
-  s.moveTo(-outer / 2, -outer / 2);
-  s.lineTo(outer / 2, -outer / 2);
-  s.lineTo(outer / 2, outer / 2);
-  s.lineTo(-outer / 2, outer / 2);
-  s.closePath();
-  const hole = new THREE.Path();
-  hole.moveTo(-inner / 2, -inner / 2);
-  hole.lineTo(-inner / 2, inner / 2);
-  hole.lineTo(inner / 2, inner / 2);
-  hole.lineTo(inner / 2, -inner / 2);
-  hole.closePath();
-  s.holes.push(hole);
-  return new THREE.ShapeGeometry(s);
+  return new THREE.ShapeGeometry(roundedRing(outer, RADIUS.glow, inner, RADIUS.frame), 10);
 }
 
 function Artwork({ app, position, interactive, light }: { app: ShowcaseApp; position: [number, number, number]; interactive: boolean; light: React.RefObject<THREE.PointLight | null> }) {
   const texture = useMemo(() => makeFrameArt(app), [app]);
   useEffect(() => () => texture.dispose(), [texture]);
   const glowGeo = useMemo(() => ringGeometry(GLOW, FRAME - 0.02), []);
+  const parts = getFrameParts();
   const accent = useMemo(() => new THREE.Color(app.accent), [app.accent]);
   const hovered = useOwlWorld((s) => s.hoveredApp === app.id) && interactive;
   const setHoveredApp = useOwlWorld((s) => s.setHoveredApp);
   const setPendingApp = useOwlWorld((s) => s.setPendingApp);
   const art = useRef<THREE.Group>(null);
+  const pop = useRef<THREE.Group>(null);
+  const popShadow = useRef<THREE.MeshBasicMaterial>(null);
+  const popSides = useRef<THREE.Mesh>(null);
+  const popShadowMesh = useRef<THREE.Mesh>(null);
+  const popSideMats = useMemo(
+    () => [new THREE.MeshBasicMaterial({ visible: false }), new THREE.MeshStandardMaterial({ color: "#d9cdb6", roughness: 0.8 })],
+    [],
+  );
+  useEffect(() => () => popSideMats.forEach((m) => m.dispose()), [popSideMats]);
+  // The picture rests in greyscale and comes into colour on hover
+  const artMat = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, emissive: "#ffffff", emissiveMap: texture, emissiveIntensity: 0.22 });
+    const colour = { value: 0 };
+    m.userData.colour = colour;
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uColour = colour;
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "void main() {",
+          "uniform float uColour;\nvec3 greyish(vec3 c) { return mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, uColour); }\nvoid main() {",
+        )
+        .replace("#include <map_fragment>", "#include <map_fragment>\ndiffuseColor.rgb = greyish(diffuseColor.rgb);")
+        .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance = greyish(totalEmissiveRadiance);");
+    };
+    return m;
+  }, [texture]);
+  useEffect(() => () => artMat.dispose(), [artMat]);
+  const artMesh = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.MeshBasicMaterial>(null);
   const level = useRef(0);
   usePointerCursor(hovered);
@@ -77,17 +171,34 @@ function Artwork({ app, position, interactive, light }: { app: ShowcaseApp; posi
   useFrame((_, dt) => {
     level.current = THREE.MathUtils.damp(level.current, hovered ? 1 : 0, 9, dt);
     const l = level.current;
+    const mat = artMesh.current?.material as THREE.MeshStandardMaterial | undefined;
+    if (mat) (mat.userData.colour as { value: number }).value = l;
     if (glow.current) {
       glow.current.color.copy(accent).multiplyScalar(0.4 + l * 4.2);
       glow.current.opacity = 0.15 + l * 0.85;
     }
     if (art.current) art.current.position.z = WALL_T / 2 + l * 0.12;
+    // The picture itself lifts clear of its mat and frame, and grows a touch
+    if (pop.current) pop.current.position.z = l * POP_LIFT;
+    // The block's sides grow with the lift, from the mat up to the picture
+    if (popSides.current) {
+      // Only while lifted, and always ending a little behind the picture so
+      // nothing ever shares its depth
+      popSides.current.visible = l > 0.02;
+      popSides.current.scale.z = Math.max(0.001, l * POP_LIFT);
+    }
+    if (popShadow.current) {
+      popShadow.current.opacity = l * 0.6;
+      popShadowMesh.current?.position.set(l * 0.03, -0.03 - l * 0.05, 0.041);
+    }
     // The one picture light follows whichever frame is lit
     if (hovered && light.current) {
       // Just in front of the art, in the light's own (museum) space
       art.current!.localToWorld(light.current.position.set(0, 0.2, 0.9));
       light.current.parent?.worldToLocal(light.current.position);
-      light.current.color.copy(accent);
+      // Mostly warm white with a hint of the app's colour: a picture light,
+      // not a coloured spot (the cream mat would turn pink)
+      light.current.color.set(PICTURE_LIGHT).lerp(accent, 0.25);
     }
   });
 
@@ -105,24 +216,47 @@ function Artwork({ app, position, interactive, light }: { app: ShowcaseApp; posi
       <mesh geometry={glowGeo} position-z={WALL_T / 2 + 0.01} userData={{ noShadow: true }}>
         <meshBasicMaterial ref={glow} transparent toneMapped={false} depthWrite={false} />
       </mesh>
-      <group ref={art} position-z={WALL_T / 2}>
-        <mesh position-z={0.04}>
-          <boxGeometry args={[FRAME, FRAME, 0.08]} />
-          <meshStandardMaterial color={COLORS.gold} metalness={0.75} roughness={0.32} />
+      {/* Soft shadow on the wall, a little below the frame */}
+      <mesh position={[0, -0.05, WALL_T / 2 + 0.004]} userData={{ noShadow: true }}>
+        <planeGeometry args={[FRAME * 1.45, FRAME * 1.45]} />
+        <meshBasicMaterial map={parts.shadow} transparent depthWrite={false} opacity={0.65} />
+      </mesh>
+      {/* The whole frame is the target, not just the picture */}
+      <group
+        ref={art}
+        position-z={WALL_T / 2}
+        onPointerOver={over}
+        onPointerOut={out}
+        onClick={(e) => {
+          if (!interactive) return;
+          e.stopPropagation();
+          setPendingApp(app);
+        }}
+      >
+        <mesh geometry={parts.moulding} position-z={0.02}>
+          <meshStandardMaterial color={COLORS.gold} metalness={0.8} roughness={0.3} />
         </mesh>
-        <mesh
-          position-z={0.085}
-          onPointerOver={over}
-          onPointerOut={out}
-          onClick={(e) => {
-            if (!interactive) return;
-            e.stopPropagation();
-            setPendingApp(app);
-          }}
-        >
-          <planeGeometry args={[ART, ART]} />
-          <meshStandardMaterial map={texture} roughness={0.6} emissive="#ffffff" emissiveMap={texture} emissiveIntensity={0.22} />
+        {/* Back panel inside the moulding, then the mat */}
+        <mesh geometry={parts.back} position-z={0.03}>
+          <meshStandardMaterial color="#2a2018" roughness={0.9} />
         </mesh>
+        <mesh geometry={parts.mat} position-z={0.04}>
+          <meshStandardMaterial color="#efe6d4" roughness={0.95} />
+        </mesh>
+        {/* The shadow the lifted picture throws on its mat */}
+        <mesh ref={popShadowMesh} position={[0, -0.03, 0.041]} userData={{ noShadow: true }}>
+          <planeGeometry args={[ART * 1.5, ART * 1.5]} />
+          <meshBasicMaterial ref={popShadow} map={parts.shadow} transparent depthWrite={false} opacity={0} />
+        </mesh>
+        {/* The raised block's sides */}
+        {/* Extrusion groups: 0 = the end caps (skipped), 1 = the sides */}
+        <mesh ref={popSides} geometry={parts.sides} position-z={0.041} scale-z={0.001} visible={false} material={popSideMats} />
+        <group ref={pop}>
+          <mesh geometry={parts.fillet} position-z={0.043}>
+            <meshStandardMaterial color="#b8924e" metalness={0.7} roughness={0.35} />
+          </mesh>
+          <mesh ref={artMesh} geometry={parts.art} position-z={0.045} material={artMat} />
+        </group>
       </group>
     </group>
   );
@@ -213,7 +347,7 @@ export default function Museum() {
 
   useFrame((_, dt) => {
     lightLevel.current = THREE.MathUtils.damp(lightLevel.current, interactive && hovered ? 1 : 0, 8, dt);
-    if (light.current) light.current.intensity = lightLevel.current * 14;
+    if (light.current) light.current.intensity = lightLevel.current * 3.5;
   });
 
   const M = MUSEUM_CENTER;
