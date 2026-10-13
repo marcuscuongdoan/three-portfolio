@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { useProgress } from "@react-three/drei";
 import { LAB_APPS, WEB_APPS } from "@/data/apps";
-import { LAST_STOP, STOP_INDEX } from "@/components/owl-world/flightPath";
+import { HOLD_STOPS, LAST_STOP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
 import { TransitPill } from "@/components/owl-world/transit";
 import { flyTo, useFlightScroll } from "@/components/owl-world/useFlightScroll";
@@ -19,8 +19,6 @@ import "@/components/owl-world/owl-world.css";
 
 const OwlScene = dynamic(() => import("@/components/owl-world/OwlScene"), { ssr: false });
 
-// Stops that hold for an extra screen of scroll
-const HOLD_STOPS = new Set<number>([STOP_INDEX.museum, STOP_INDEX.contact]);
 
 // The last stop is home again
 const uiStop = (s: number | null) => (s === LAST_STOP ? STOP_INDEX.home : s);

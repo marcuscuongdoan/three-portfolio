@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { useFrame } from "@react-three/fiber";
+import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { OWL_URL } from "@/components/owl-world/Owl";
+import { CLICK_STRETCH_SPEED, clickWingbeats, OWL_URL } from "@/components/owl-world/Owl";
 import { headAngles, OwlPoser, pointerPoint } from "@/components/owl-world/owlPoser";
+import { playOwlCall } from "@/components/owl-world/owlSound";
+import { usePointerCursor } from "@/components/owl-world/Corridor";
 import { LAST_STOP, MUSEUM_CENTER, MUSEUM_RADIUS, MUSEUM_WALL_STEP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { HOUSE_POSITION, HOUSE_YAW } from "@/components/owl-world/HomeGrounds";
 import { MUSEUM_WALL_TOP } from "@/components/owl-world/Museum";
@@ -134,6 +136,24 @@ class Companion {
     this.root.add(model);
     this.root.scale.setScalar(this.scale);
     this.poser = new OwlPoser(model, animations, index + 1);
+    // An easy target round the body for clicks
+    const hit = new THREE.Mesh(
+      new THREE.SphereGeometry(0.36, 12, 10),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }),
+    );
+    hit.position.y = 0.02;
+    hit.userData.noShadow = true;
+    this.root.add(hit);
+  }
+
+  get sitting() {
+    return this.mode === "perched" && this.root.visible;
+  }
+
+  /** Clicked: stretch its wings and call, if it's sitting. Returns whether it did */
+  startle() {
+    if (!this.sitting) return false;
+    return this.poser.stretch(CLICK_STRETCH_SPEED);
   }
 
   private spotFor(place: Place) {
@@ -331,6 +351,8 @@ function bezierTangent(a: THREE.Vector3, c: THREE.Vector3, b: THREE.Vector3, t: 
 }
 
 export default function Companions() {
+  const [hovered, setHovered] = useState<number | null>(null);
+  usePointerCursor(hovered !== null);
   const { scene, animations } = useGLTF(OWL_URL);
   const owls = useMemo(
     () =>
@@ -364,7 +386,21 @@ export default function Companions() {
   return (
     <>
       {owls.map((o, i) => (
-        <primitive key={i} object={o.root} />
+        <primitive
+          key={i}
+          object={o.root}
+          onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+            e.stopPropagation();
+            setHovered(o.sitting ? i : null);
+          }}
+          onPointerOut={() => setHovered(null)}
+          onClick={(e: ThreeEvent<MouseEvent>) => {
+            if (!o.startle()) return;
+            e.stopPropagation();
+            // The smaller the owl, the higher its call
+            playOwlCall({ pitch: 1.18 + i * 0.14, wingbeats: clickWingbeats() });
+          }}
+        />
       ))}
     </>
   );

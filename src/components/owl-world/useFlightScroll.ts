@@ -27,8 +27,8 @@ const IDLE_MS = 140;
 // A wheel event this long after the last one starts a new gesture
 const WHEEL_GAP_MS = 220;
 
-const sectionHeight = () => document.getElementById("owl-stop-0")?.offsetHeight || window.innerHeight;
-const stopTop = (stop: number) => document.getElementById(`owl-stop-${stop}`)?.offsetTop ?? stop * sectionHeight();
+export const sectionHeight = () => document.getElementById("owl-stop-0")?.offsetHeight || window.innerHeight;
+export const stopTop = (stop: number) => document.getElementById(`owl-stop-${stop}`)?.offsetTop ?? stop * sectionHeight();
 const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
 
 /** Every place the page comes to rest: section tops, in order */

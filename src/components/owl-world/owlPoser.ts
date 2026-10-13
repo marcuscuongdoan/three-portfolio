@@ -73,9 +73,11 @@ export interface PoseInput {
 // Share of a wingbeat spent on the (powered) downstroke; the rest is the
 // slower recovery upstroke, on which the wing folds
 const DOWNSTROKE = 0.4;
-// Folding on the upstroke: elbow and wrist sweep back (rad)
-const FOLD_ELBOW = 0.55;
-const FOLD_WRIST = 0.5;
+// Folding on the upstroke, as a bird does: the elbow flexes, the wrist
+// folds the hand back and lets it hang, roughly halving the span (rad)
+const FOLD_ELBOW = 0.95;
+const FOLD_WRIST = 1.1;
+const HAND_DROOP = 0.75;
 // Leading edge dips on the downstroke (rad)
 const PRONATE = 0.14;
 // Beats between glides, and how long a glide lasts (s)
@@ -121,8 +123,17 @@ export class OwlPoser {
   readonly root: THREE.Object3D;
   private mixer: THREE.AnimationMixer;
   private emote: THREE.AnimationAction;
+  private parts: THREE.AnimationAction[];
   private clipDuration: number;
-  private wings: { sign: number; shoulder: THREE.Object3D; elbow: THREE.Object3D; wrist: THREE.Object3D }[];
+  private wings: {
+    sign: number;
+    shoulder: THREE.Object3D;
+    elbow: THREE.Object3D;
+    wrist: THREE.Object3D;
+    // Flight feathers: how much each gives to the air, and its place from
+    // the body outward (the wave runs along this)
+    feathers: { bone: THREE.Object3D; give: number; order: number }[];
+  }[];
   private head: THREE.Object3D;
   private neck: THREE.Object3D;
   private chest: THREE.Object3D;
@@ -156,14 +167,20 @@ export class OwlPoser {
   private nextShuffle = rand(6, 14);
   private nextBlink = rand(1.5, 4);
   private time = 0;
+  // Speed of the stretch now playing (a click plays it brisker)
+  private stretchSpeed = 1;
 
   constructor(root: THREE.Object3D, animations: THREE.AnimationClip[], seed = 0) {
     this.root = root;
     this.mixer = new THREE.AnimationMixer(root);
     const clip = animations.find((a) => a.name === EMOTE)!;
-    this.emote = this.mixer.clipAction(clip);
-    this.emote.setLoop(THREE.LoopOnce, 1);
-    this.emote.clampWhenFinished = true;
+    this.parts = [clip].map((c) => {
+      const action = this.mixer.clipAction(c);
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+      return action;
+    });
+    this.emote = this.parts[0]!;
     this.clipDuration = clip.duration;
     this.phase = seed * 2.3;
     this.nextStretch = 6 + seed * 4;
@@ -172,11 +189,26 @@ export class OwlPoser {
     root.updateMatrixWorld(true);
     // Which side of the body a bone is on, in the owl's own frame
     const sideOf = (b: THREE.Object3D) => Math.sign(root.worldToLocal(b.getWorldPosition(new THREE.Vector3())).x) || 1;
+    // Arm feathers barely give; the hand's primaries bend the most
+    const FEATHERS: [string, number][] = [
+      ["featherMain_A", 0.08],
+      ["featherMid_a", 0.1],
+      ["featherMid_b", 0.11],
+      ["featherMid_c", 0.12],
+      ["featherMain_B", 0.14],
+      ["featherMid_d", 0.16],
+      ["featherMid_e", 0.18],
+      ["featherMid_f", 0.2],
+      ["featherMid_g", 0.26],
+      ["featherMid_h", 0.3],
+      ["featherMid_i", 0.34],
+    ];
     this.wings = (["l", "r"] as const).map((s) => ({
       sign: sideOf(bone(`wrist_${s}`)),
       shoulder: bone(`shoulder_${s}`),
       elbow: bone(`elbow_${s}`),
       wrist: bone(`wrist_${s}`),
+      feathers: FEATHERS.map(([name, give], order) => ({ bone: bone(`${name}_${s}`), give, order })),
     }));
     this.head = bone("head");
     this.neck = bone("neck");
@@ -203,14 +235,23 @@ export class OwlPoser {
       ...this.tailFeathers.map((f) => f.bone),
       ...this.legs,
       ...this.ears.map((e) => e.bone),
-      ...this.wings.flatMap((w) => [w.shoulder, w.elbow, w.wrist]),
+      ...this.wings.flatMap((w) => [w.shoulder, w.elbow, w.wrist, ...w.feathers.map((f) => f.bone)]),
     ];
     this.base = this.touched.map((b) => b.quaternion.clone());
   }
 
-  /** Play the wing stretch now (if sitting) */
-  stretch() {
+  /** Play the wing stretch now (if sitting); `speed` > 1 plays it brisker */
+  stretch(speed = 1) {
+    if (this.stretching) return false;
     this.nextStretch = 0;
+    this.stretchSpeed = speed;
+    return true;
+  }
+
+
+
+  private setParts(fn: (a: THREE.AnimationAction) => void) {
+    this.parts.forEach(fn);
   }
 
   /** Rotate a bone about one of the owl's own axes */
@@ -239,26 +280,35 @@ export class OwlPoser {
     this.time += dt;
     this.readAttitude(dt);
 
+
     // (Re)start the held sitting pose — also after a StrictMode remount
-    if (!emote.isScheduled()) {
-      emote.reset().play();
-      emote.paused = true;
-      emote.time = EMOTE_HOLD;
-    }
+    if (!emote.isScheduled()) this.setParts((a) => {
+      a.reset().play();
+      a.paused = true;
+      a.time = EMOTE_HOLD;
+    });
     // Sitting: hold the folded frame, now and then play the stretch
-    emote.setEffectiveWeight(sit);
+    for (const part of this.parts) part.setEffectiveWeight(sit);
     if (sit > 0.98 && !this.stretching) {
       this.nextStretch -= dt;
       if (this.nextStretch <= 0) {
         this.stretching = true;
-        emote.paused = false;
-        emote.time = EMOTE_HOLD;
+        const speed = this.stretchSpeed;
+        this.setParts((a) => {
+          a.paused = false;
+          a.time = EMOTE_HOLD;
+          a.timeScale = speed;
+        });
       }
     }
     if (this.stretching && (emote.time >= this.clipDuration - 0.02 || sit < 0.5)) {
       this.stretching = false;
-      emote.paused = true;
-      emote.time = EMOTE_HOLD;
+      this.stretchSpeed = 1;
+      this.setParts((a) => {
+        a.paused = true;
+        a.time = EMOTE_HOLD;
+        a.timeScale = 1;
+      });
       const [lo, hi] = IDLE_STRETCH_EVERY;
       this.nextStretch = lo + Math.random() * (hi - lo);
     }
@@ -287,32 +337,54 @@ export class OwlPoser {
     }
     this.flapWeight = THREE.MathUtils.damp(this.flapWeight, this.gliding > 0 ? 0 : 1, 6, dt);
 
-    // --- Wingbeat: quick downstroke, slower folding upstroke ---------------
-    // u: 0..1 through the beat; s: +1 wings up … -1 wings down
-    const u = (((this.phase / (Math.PI * 2)) % 1) + 1) % 1;
-    const down = u < DOWNSTROKE;
-    const s = down ? Math.cos((Math.PI * u) / DOWNSTROKE) : -Math.cos((Math.PI * (u - DOWNSTROKE)) / (1 - DOWNSTROKE));
-    const fold = down ? 0 : Math.sin((Math.PI * (u - DOWNSTROKE)) / (1 - DOWNSTROKE));
-    const pronate = down ? Math.sin((Math.PI * u) / DOWNSTROKE) : 0;
+    // --- Wingbeat: a wave down the wing, not a plank -----------------------
+    // The shoulder leads; the forearm follows a beat later and the hand later
+    // still, so every stroke curves through the wing and the tip whips. The
+    // upstroke folds the hand in and down (the "M" shape); the flight
+    // feathers bend against the air, the outer ones last.
     const amp = fly * THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.5, 0.72, p.hover), 0.95, p.land) * this.flapWeight;
     // Gliding wings hold a little raised and ride the air
     const glideHold = fly * (1 - this.flapWeight) * (0.16 + Math.sin(this.time * 1.7) * 0.03);
     // A slight dihedral so the downstroke doesn't sweep below the body
     const dihedral = fly * 0.12;
-    const wingFold = fly * fold * this.flapWeight;
     // Wing shuffle while sitting: a quick lift and settle
     const shuffle = this.shuffle.step(dt) * sit;
+    const phi = this.phase;
+    const beatAmp = amp;
+    const base = glideHold + dihedral;
+    const foldReach = fly;
+
+    // u: 0..1 through the beat; s: +1 wings up … -1 wings down
+    const u = (((phi / (Math.PI * 2)) % 1) + 1) % 1;
+    const down = u < DOWNSTROKE;
+    const s = down ? Math.cos((Math.PI * u) / DOWNSTROKE) : -Math.cos((Math.PI * (u - DOWNSTROKE)) / (1 - DOWNSTROKE));
+    // Folded through the upstroke and opened out again just before the top,
+    // so the next downstroke starts on a fully spread wing
+    const fold = down ? 0 : Math.sin(Math.PI * THREE.MathUtils.clamp((u - DOWNSTROKE) / (0.92 - DOWNSTROKE), 0, 1)) * (beatAmp > 0.01 ? 1 : 0);
+    const pronate = down ? Math.sin((Math.PI * u) / DOWNSTROKE) : 0;
+    // How hard the wing is working, 0..1, for the bends below
+    const work = THREE.MathUtils.clamp(beatAmp / 0.6, 0, 1);
+
     for (const w of this.wings) {
-      // Lift is about the owl's forward axis; sweep (fold) about its up axis
-      this.turn(w.shoulder, OWL_Z, (s * amp + glideHold + dihedral) * w.sign);
-      this.turn(w.shoulder, OWL_X, -PRONATE * pronate * amp);
-      this.turn(w.shoulder, OWL_Z, shuffle * 0.22 * w.sign);
-      // The outer wing trails the inner a touch, like it has weight
-      const lag = Math.sin(this.phase - 0.9) * amp;
-      this.turn(w.elbow, OWL_Z, (lag * 0.45 + dihedral * 0.4) * w.sign);
-      this.turn(w.elbow, OWL_Y, -FOLD_ELBOW * wingFold * w.sign);
-      this.turn(w.wrist, OWL_Z, Math.sin(this.phase - 1.5) * amp * 0.35 * w.sign);
-      this.turn(w.wrist, OWL_Y, -FOLD_WRIST * wingFold * w.sign);
+      const side = w.sign;
+      // Shoulder: the stroke itself (about the owl's forward axis), the
+      // leading edge dipping on the way down
+      this.turn(w.shoulder, OWL_Z, (s * beatAmp + base + shuffle * 0.22) * side);
+      this.turn(w.shoulder, OWL_X, -PRONATE * pronate * beatAmp);
+      // Downstroke: the wing is held straight and open, the tip trailing a
+      // touch. Upstroke: the elbow flexes and the hand folds back and hangs,
+      // so the wing comes up short and opens out again at the top
+      this.turn(w.elbow, OWL_Z, (Math.sin(phi - 1.2) * beatAmp * 0.2 - fold * 0.3 * work + dihedral * 0.4) * side);
+      this.turn(w.elbow, OWL_Y, -FOLD_ELBOW * fold * work * foldReach * side);
+      this.turn(w.wrist, OWL_Z, (Math.sin(phi - 1.8) * beatAmp * 0.3 - fold * HAND_DROOP * work) * side);
+      this.turn(w.wrist, OWL_Y, -FOLD_WRIST * fold * work * foldReach * side);
+      // Flight feathers: bent up by the air on the downstroke and down on the
+      // upstroke, each a little after the one inside it; fanned open on the
+      // downstroke, closed up on the upstroke
+      w.feathers.forEach(({ bone, give, order }) => {
+        this.turn(bone, OWL_Z, Math.sin(phi - 2.3 - order * 0.28) * beatAmp * give * side);
+        this.turn(bone, OWL_Y, (pronate - fold * 0.6) * order * 0.035 * work * side);
+      });
     }
 
     // --- Body: bobs against the wings; shakes now and then when sitting ----

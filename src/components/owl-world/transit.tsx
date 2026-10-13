@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { LAST_STOP, STOPS, stopPosition } from "@/components/owl-world/flightPath";
+import { HOLD_STOPS, LAST_STOP, STOPS, stopPosition } from "@/components/owl-world/flightPath";
 import { flight } from "@/components/owl-world/owlStore";
+import { sectionHeight, stopTop } from "@/components/owl-world/useFlightScroll";
 
 /**
  * "You're about to arrive somewhere": while the owl is between stops, a
- * beacon glows at the stop it's flying to (in the scene) and a pill at the
- * bottom of the screen names it and fills as the leg goes by.
+ * beacon glows at the stop it's flying to (in the scene) and a pill names it
+ * and fills as the leg goes by. At the stops that hold for an extra screen of
+ * scrolling, the same pill fills as you scroll through the hold, so it's
+ * clear that scrolling is getting you somewhere before the owl moves.
  */
 
 const STOP_NAMES: Record<string, string> = {
@@ -32,6 +35,18 @@ export function transitState() {
   // Between stops, or setting off: anything but resting on one
   const moving = Math.abs(p - Math.round(p)) > 0.02 || Math.abs(flight.velocity) > 0.02;
   return { target, along, moving };
+}
+
+/**
+ * Resting at a hold stop with the page scrolled into its hold screen: how
+ * far through it (0..1), and the stop that comes next. Null elsewhere
+ */
+function holdState() {
+  const stop = Math.round(flight.current);
+  if (!HOLD_STOPS.has(stop) || Math.abs(flight.current - stop) > 0.02) return null;
+  const amount = THREE.MathUtils.clamp((window.scrollY - stopTop(stop)) / sectionHeight(), 0, 1);
+  if (amount < 0.02) return null;
+  return { amount, ready: amount > 0.97, next: Math.min(LAST_STOP, stop + 1) };
 }
 
 // ---------------------------------------------------------------- 3D beacon
@@ -123,21 +138,28 @@ export function TransitPill() {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const { target, along, moving } = transitState();
-      shown += ((moving ? 1 : 0) - shown) * (1 - Math.exp(-dt * 6));
+      const hold = moving ? null : holdState();
+      shown += ((moving || hold ? 1 : 0) - shown) * (1 - Math.exp(-dt * 6));
       const el = box.current;
       if (el) {
         el.style.opacity = shown.toFixed(3);
         el.style.transform = `translate(-50%, ${((1 - shown) * 12).toFixed(1)}px)`;
       }
       const arriving = along > 0.8;
-      const text = `${arriving ? "Arriving" : "Flying to"}|${STOP_NAMES[STOPS[target]!.id]}`;
+      const text = hold
+        ? `${hold.ready ? "Scroll once more" : "Keep scrolling"}|${STOP_NAMES[STOPS[hold.next]!.id]}`
+        : `${arriving ? "Arriving" : "Flying to"}|${STOP_NAMES[STOPS[target]!.id]}`;
       if (text !== lastText && kicker.current && label.current) {
         lastText = text;
         const [k, l] = text.split("|");
         kicker.current.textContent = k!;
         label.current.textContent = l!;
       }
-      if (bar.current) bar.current.style.transform = `scaleX(${along.toFixed(3)})`;
+      if (bar.current) {
+        bar.current.style.transform = `scaleX(${(hold ? hold.amount : along).toFixed(3)})`;
+        // The hold meter reads paler until it's full
+        bar.current.style.opacity = hold && !hold.ready ? "0.7" : "1";
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -148,7 +170,8 @@ export function TransitPill() {
     <div
       ref={box}
       aria-hidden
-      className="owl-glass pointer-events-none fixed bottom-5 left-1/2 z-20 w-56 rounded-2xl px-4 py-2.5 sm:bottom-6"
+      // Phones keep it up under the nav: the bottom has the form or the cards
+      className="owl-glass pointer-events-none fixed bottom-6 left-1/2 z-20 w-60 rounded-2xl px-4 py-2.5 max-md:bottom-auto max-md:top-20"
       style={{ opacity: 0, transform: "translate(-50%, 12px)" }}
     >
       <div className="flex items-baseline justify-between gap-3">

@@ -1,11 +1,13 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import type { FlightSample } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
+import { playOwlCall } from "@/components/owl-world/owlSound";
+import { usePointerCursor } from "@/components/owl-world/Corridor";
 import { headAngles, OWL_Z, OwlPoser, pointerPoint } from "@/components/owl-world/owlPoser";
 
 export const OWL_URL = "/models/owl_web.glb";
@@ -16,6 +18,11 @@ export interface OwlHandle {
 }
 
 const _r = new THREE.Quaternion();
+// A click plays the sitting owl's wing stretch this much faster, with a
+// wingbeat sound where its wings open (seconds into the clip at normal speed)
+export const CLICK_STRETCH_SPEED = 1.5;
+export const STRETCH_WINGBEATS = [0.55, 1.85, 4.55];
+export const clickWingbeats = () => STRETCH_WINGBEATS.map((t) => t / CLICK_STRETCH_SPEED);
 const _head = new THREE.Vector3();
 const _seen = new THREE.Vector3();
 
@@ -42,7 +49,12 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
     look: { yaw: 0, pitch: 0 },
     spin: -1, // 0..1 progress of a celebratory barrel roll, -1 when idle
     cheer: false,
+    // How settled on its perch the owl is this frame (clicks only count then)
+    perch: 0,
   });
+  const [hovered, setHovered] = useState(false);
+  const [sitting, setSitting] = useState(true);
+  usePointerCursor(hovered && sitting);
 
   // Cheer (contact form sent): stretch the wings if sitting, roll if flying
   const cheer = useOwlWorld((s) => s.cheer);
@@ -82,6 +94,9 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
           lookPitch: st.look.pitch,
         });
 
+        st.perch = sample.perch;
+        const nowSitting = sample.perch > 0.95;
+        if (nowSitting !== sitting) setSitting(nowSitting);
         g.position.copy(sample.pos);
         g.position.y += bob;
         g.quaternion.copy(sample.quat);
@@ -96,12 +111,30 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
         }
       },
     }),
-    [poser, camera],
+    [poser, camera, sitting],
   );
 
   return (
-    <group ref={group}>
+    <group
+      ref={group}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
+      onClick={(e) => {
+        // Only a sitting owl answers; one in flight ignores the click
+        if (state.current.perch < 0.95) return;
+        e.stopPropagation();
+        if (poser.stretch(CLICK_STRETCH_SPEED)) playOwlCall({ pitch: 1, wingbeats: clickWingbeats() });
+      }}
+    >
       <primitive object={scene} />
+      {/* An easy target round the body: the owl is small on screen */}
+      <mesh position-y={0.02} userData={{ noShadow: true }}>
+        <sphereGeometry args={[0.36, 12, 10]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+      </mesh>
     </group>
   );
 });

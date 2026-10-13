@@ -34,6 +34,8 @@ export const LAST_STOP = STOPS.length - 1;
 export const PORTRAIT_ASPECT = 0.9;
 export const cameraFov = (aspect: number) => (aspect < PORTRAIT_ASPECT ? 58 : 45);
 export const STOP_INDEX = { home: 0, loop: 1, web: 2, lab: 3, museum: 4, contact: 5, return: 6 } as const;
+// Stops that hold for an extra screen of scrolling before the flight goes on
+export const HOLD_STOPS = new Set<number>([STOP_INDEX.museum, STOP_INDEX.contact]);
 
 // Where the owl sits on the branch — the tree and branch are built around it
 export const PERCH_HOME = new THREE.Vector3(0, 2.79, 0.01);
