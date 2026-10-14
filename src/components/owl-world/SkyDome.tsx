@@ -154,29 +154,48 @@ function Sky() {
 const DRIFT_MIN_X = -130;
 const DRIFT_MAX_X = 110;
 
-/** A soft, lumpy blob that fades to nothing at its edge */
+/**
+ * A soft, lumpy blob that fades to nothing at its edge. Built pixel by pixel
+ * rather than on a 2D canvas: WebKit's fingerprinting protection (iOS Safari
+ * and Chrome) adds per-pixel noise to canvas readback, which showed up as
+ * colourful static all over the translucent clouds
+ */
 function makePuffTexture() {
   const S = 128;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = S;
-  const ctx = canvas.getContext("2d")!;
   const rand = mulberry32(19);
   // Overlapping soft circles give it a cauliflower edge rather than a disc
-  for (let i = 0; i < 14; i++) {
+  const circles = Array.from({ length: 14 }, () => {
     const a = rand() * Math.PI * 2;
     const d = rand() * S * 0.16;
-    const x = S / 2 + Math.cos(a) * d;
-    const y = S / 2 + Math.sin(a) * d * 0.8;
-    const r = S * (0.2 + rand() * 0.16);
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, "rgba(255,255,255,0.42)");
-    g.addColorStop(0.55, "rgba(255,255,255,0.2)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, S, S);
+    return {
+      x: S / 2 + Math.cos(a) * d,
+      y: S / 2 + Math.sin(a) * d * 0.8,
+      r: S * (0.2 + rand() * 0.16),
+    };
+  });
+  // Same falloff as the old gradient stops: 0.42 → 0.2 at 55% → 0 at the rim
+  const falloff = (t: number) =>
+    t >= 1 ? 0 : t < 0.55 ? 0.42 - (0.22 * t) / 0.55 : (0.2 * (1 - t)) / 0.45;
+  const data = new Uint8Array(S * S * 4);
+  for (let py = 0; py < S; py++) {
+    for (let px = 0; px < S; px++) {
+      let alpha = 0;
+      for (const c of circles) {
+        const a = falloff(Math.hypot(px + 0.5 - c.x, py + 0.5 - c.y) / c.r);
+        alpha = a + alpha * (1 - a); // source-over, like stacked fills
+      }
+      // DataTexture rows run bottom-up, so flip to keep the canvas orientation
+      const i = ((S - 1 - py) * S + px) * 4;
+      data[i] = data[i + 1] = data[i + 2] = 255;
+      data[i + 3] = Math.round(alpha * 255);
+    }
   }
-  const tex = new THREE.CanvasTexture(canvas);
+  const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.needsUpdate = true;
   return tex;
 }
 
