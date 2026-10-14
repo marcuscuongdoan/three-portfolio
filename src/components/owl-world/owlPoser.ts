@@ -168,6 +168,11 @@ export class OwlPoser {
   private wasSitting = true;
   private nextShake = rand(9, 18);
   private nextShuffle = rand(6, 14);
+  // A sitting owl flicks and wags its tail now and then
+  private flick = new Pulse();
+  private nextFlick = rand(3, 7);
+  // How big the tail moves are (small owls want them bigger to read)
+  tailGain = 1;
   private nextBlink = rand(1.5, 4);
   private time = 0;
   // Speed of the stretch now playing (a click plays it brisker)
@@ -417,16 +422,27 @@ export class OwlPoser {
     const settle = this.settle.step(dt);
     const brake = Math.max(p.land, p.hover * 0.5) * fly;
     const glide = fly * (1 - this.flapWeight);
-    const pump = Math.sin(phi - 2.6) * amp * 0.24;
-    const balance = Math.sin(this.time * 7.5) * 0.14 * p.land * fly;
-    const bobDown = Math.sin(this.time * 13) * 0.22 * settle;
-    const sway = Math.sin(this.time * 1.3) * 0.13 * glide + Math.sin(this.time * 2.9 + 1) * 0.04 * fly;
-    this.turn(this.tail, OWL_X, TAIL_BRAKE * brake - s * amp * 0.06 + pump + balance + bobDown);
-    this.turn(this.tail, OWL_Y, THREE.MathUtils.clamp(-this.turnRate * 0.18, -0.35, 0.35) * fly + sway);
-    this.turn(this.tail, OWL_Z, THREE.MathUtils.clamp(-this.roll * 0.4, -0.3, 0.3) * fly + Math.sin(this.time * 0.9) * 0.07 * glide);
+    if (sit > 0.98 && !this.stretching) {
+      this.nextFlick -= dt;
+      if (this.nextFlick <= 0 && !this.flick.running) {
+        this.flick.start(rand(0.7, 1.1));
+        this.nextFlick = rand(3, 8);
+      }
+    }
+    // The flick: up, then a few quick wags side to side as it comes back down
+    const flick = this.flick.step(dt) * sit;
+    const g = this.tailGain;
+    const pump = Math.sin(phi - 2.6) * amp * 0.4;
+    const balance = Math.sin(this.time * 7.5) * 0.2 * p.land * fly;
+    const bobDown = Math.sin(this.time * 13) * 0.25 * settle;
+    const sway = Math.sin(this.time * 1.3) * 0.2 * glide + Math.sin(this.time * 2.9 + 1) * 0.07 * fly;
+    const wag = Math.sin(this.time * 15) * 0.22 * flick;
+    this.turn(this.tail, OWL_X, TAIL_BRAKE * brake - s * amp * 0.06 + (pump + balance + bobDown - flick * 0.35) * g);
+    this.turn(this.tail, OWL_Y, THREE.MathUtils.clamp(-this.turnRate * 0.18, -0.35, 0.35) * fly + (sway + wag) * g);
+    this.turn(this.tail, OWL_Z, THREE.MathUtils.clamp(-this.roll * 0.4, -0.3, 0.3) * fly + Math.sin(this.time * 0.9) * 0.1 * glide * g);
     // Fanned to brake, opening and closing a little with each beat; the
     // feathers flutter in the wind, the outer ones most
-    const fan = (TAIL_FAN * brake + 0.08 * fly + 0.18 * settle) * (1 + shake * 0.5) + Math.max(0, -s) * amp * 0.12;
+    const fan = (TAIL_FAN * brake + 0.1 * fly + 0.18 * settle + 0.25 * flick) * (1 + shake * 0.5) + Math.max(0, -s) * amp * 0.12;
     for (const f of this.tailFeathers) {
       this.turn(f.bone, OWL_Y, fan * f.spread * f.sign);
       this.turn(f.bone, OWL_X, Math.sin(this.time * 11 + f.spread * 4 + f.sign) * 0.05 * f.spread * fly * (0.4 + p.speed * 0.4));

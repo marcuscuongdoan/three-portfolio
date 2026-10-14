@@ -141,6 +141,7 @@ class Companion {
     this.root.add(model);
     this.root.scale.setScalar(this.scale);
     this.poser = new OwlPoser(model, animations, index + 1);
+    this.poser.tailGain = 1.6;
     // An easy target round the body for clicks
     const hit = new THREE.Mesh(
       new THREE.SphereGeometry(0.36, 12, 10),
