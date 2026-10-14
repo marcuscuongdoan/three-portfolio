@@ -28,6 +28,7 @@ import {
   createSample,
   FlightSample,
   LAST_STOP,
+  maxRateAt,
   PORTRAIT_ASPECT,
   sampleFlight,
   STOP_INDEX,
@@ -235,11 +236,9 @@ function FlightRig() {
       const accel =
         OMEGA * OMEGA * (flight.target - flight.current) -
         2 * OMEGA * flight.velocity;
-      flight.velocity = THREE.MathUtils.clamp(
-        flight.velocity + accel * h,
-        -MAX_RATE,
-        MAX_RATE,
-      );
+      const v = flight.velocity + accel * h;
+      const cap = Math.min(MAX_RATE, maxRateAt(flight.current, v < 0));
+      flight.velocity = THREE.MathUtils.clamp(v, -cap, cap);
       flight.current += flight.velocity * h;
     }
     if (

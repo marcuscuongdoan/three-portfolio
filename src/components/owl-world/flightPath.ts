@@ -2,8 +2,8 @@ import * as THREE from "three";
 
 /**
  * The owl's whole journey is one curve. Scroll progress is a float where each
- * integer is a stop (a snap point): 0 home → 1 loop → 2 web products →
- * 3 3D lab → 4 museum → 5 contact → 6 home again. Between two stops the owl
+ * integer is a stop (a snap point): 0 home → 1 web products → 2 3D lab →
+ * 3 museum → 4 contact → 5 home again. Between two stops the owl
  * moves along the curve at constant speed (by arc length); near a stop that
  * has its own framing the owl's pose and the camera ease into it.
  */
@@ -17,13 +17,14 @@ export interface StopDef {
   yaw?: number;
   // Nose-up tilt while hovering
   pitch?: number;
+  // Top speed (m/s) on the legs either side of this stop, to take it slower
+  pace?: number;
 }
 
 export const STOPS: StopDef[] = [
   { id: "home", kind: "perch", yaw: Math.PI + 0.32 },
-  { id: "loop", kind: "chase" },
   { id: "web", kind: "chase" },
-  { id: "lab", kind: "chase" },
+  { id: "lab", kind: "chase", pace: 6.5 },
   { id: "museum", kind: "perch", yaw: 0 },
   { id: "contact", kind: "hover", yaw: Math.PI + 0.38, pitch: 0.35 },
   { id: "return", kind: "perch", yaw: Math.PI + 0.32 },
@@ -33,9 +34,9 @@ export const LAST_STOP = STOPS.length - 1;
 // Portrait screens get a taller field of view so the scenes still fit across
 export const PORTRAIT_ASPECT = 0.9;
 export const cameraFov = (aspect: number) => (aspect < PORTRAIT_ASPECT ? 58 : 45);
-export const STOP_INDEX = { home: 0, loop: 1, web: 2, lab: 3, museum: 4, contact: 5, return: 6 } as const;
+export const STOP_INDEX = { home: 0, web: 1, lab: 2, museum: 3, contact: 4, return: 5 } as const;
 // Stops that hold for an extra screen of scrolling before the flight goes on
-export const HOLD_STOPS = new Set<number>([STOP_INDEX.museum, STOP_INDEX.contact]);
+export const HOLD_STOPS = new Set<number>([STOP_INDEX.museum]);
 
 // Where the owl sits on the branch — the tree and branch are built around it
 export const PERCH_HOME = new THREE.Vector3(0, 2.79, 0.01);
@@ -53,24 +54,20 @@ export const CORRIDOR_Y = 4.3;
 type P = [number, number, number];
 const pts: { p: P; stop?: number }[] = [
   { p: [PERCH_HOME.x, PERCH_HOME.y, PERCH_HOME.z], stop: 0 },
-  // Take off toward the camera, then one full circle around the tree crown
+  // Take off toward the camera, swing out round the front of the tree...
   { p: [-0.5, 3.4, 1.35] },
   { p: [-2.7, 4.25, 2.65] },
   { p: [-5.3, 4.8, -1.0] },
-  { p: [-1.4, 5.5, -4.9] },
-  { p: [2.5, 5.8, -1.0] },
-  { p: [-1.4, 5.4, 2.9], stop: 1 },
-  { p: [-5.3, 5.0, -1.0] },
   // ...then straight down the corridor
   { p: [-4.9, 4.6, -6] },
-  { p: [CORRIDOR_X, CORRIDOR_Y, -11], stop: 2 },
+  { p: [CORRIDOR_X, CORRIDOR_Y, -11], stop: 1 },
   { p: [CORRIDOR_X + 0.3, CORRIDOR_Y + 0.2, -26] },
-  { p: [CORRIDOR_X, CORRIDOR_Y, -42], stop: 3 },
+  { p: [CORRIDOR_X, CORRIDOR_Y, -42], stop: 2 },
   { p: [CORRIDOR_X - 0.3, CORRIDOR_Y - 0.1, -56] },
   { p: [CORRIDOR_X, CORRIDOR_Y - 0.6, -68] },
   { p: [CORRIDOR_X, 2.9, -76] },
   { p: [CORRIDOR_X, 2.05, -82.5] },
-  { p: [MUSEUM_CENTER.x, MUSEUM_CENTER.y, MUSEUM_CENTER.z], stop: 4 },
+  { p: [MUSEUM_CENTER.x, MUSEUM_CENTER.y, MUSEUM_CENTER.z], stop: 3 },
   // Up out of the open-air museum in a wide rising turn — always moving
   // across as well as up, so the heading (and the chase camera) stays steady
   { p: [-4.5, 3.6, -89.2] },
@@ -78,7 +75,7 @@ const pts: { p: P; stop?: number }[] = [
   { p: [1.6, 9.8, -88.4] },
   { p: [1.8, 12.8, -83] },
   { p: [-0.6, 14.9, -78.8] },
-  { p: [CONTACT_POINT.x, CONTACT_POINT.y, CONTACT_POINT.z], stop: 5 },
+  { p: [CONTACT_POINT.x, CONTACT_POINT.y, CONTACT_POINT.z], stop: 4 },
   // A long glide home over the house
   { p: [-2.4, 15.5, -62] },
   { p: [-0.4, 13, -38] },
@@ -88,7 +85,7 @@ const pts: { p: P; stop?: number }[] = [
   { p: [4.2, 6.4, -4.2] },
   { p: [3.0, 4.3, 1.1] },
   { p: [1.0, 3.25, 0.75] },
-  { p: [PERCH_HOME.x, PERCH_HOME.y, PERCH_HOME.z], stop: 6 },
+  { p: [PERCH_HOME.x, PERCH_HOME.y, PERCH_HOME.z], stop: 5 },
 ];
 
 const curve = new THREE.CatmullRomCurve3(
@@ -119,6 +116,16 @@ const STOP_LEN: number[] = (() => {
 export const stopPosition = (stop: number, target = new THREE.Vector3()) =>
   curve.getPointAt(toU(STOP_LEN[THREE.MathUtils.clamp(stop, 0, LAST_STOP)]!), target);
 
+/**
+ * The fastest the flight may go (stops/s) at progress `p`, heading forward
+ * or back: a stop with a pace slows the legs either side of it
+ */
+export function maxRateAt(p: number, back: boolean) {
+  const seg = THREE.MathUtils.clamp(back ? Math.ceil(p) - 1 : Math.floor(p), 0, LAST_STOP - 1);
+  const pace = Math.min(STOPS[seg]!.pace ?? Infinity, STOPS[seg + 1]!.pace ?? Infinity);
+  return pace / (STOP_LEN[seg + 1]! - STOP_LEN[seg]!);
+}
+
 // Camera framing at stops that override the chase camera, as offsets from the
 // owl. Narrow (portrait) screens need a different composition
 function stopCamera(id: string, aspect: number, fov: number, pos: THREE.Vector3, target: THREE.Vector3) {
@@ -128,11 +135,11 @@ function stopCamera(id: string, aspect: number, fov: number, pos: THREE.Vector3,
     case "return":
       // Looking at the owl, panned right so it sits in the upper left
       if (portrait) {
-        pos.set(0.45, 0.75, 4.4);
-        target.set(0.45, -0.95, 0);
+        pos.set(0.26, 0.75, 3.5);
+        target.set(0.26, -0.6, 0);
       } else {
-        pos.set(0.9, 0.38, 2.6);
-        target.set(0.9, -0.32, 0);
+        pos.set(0.45, 0.48, 1.95);
+        target.set(0.45, -0.06, 0);
       }
       return true;
     case "museum": {

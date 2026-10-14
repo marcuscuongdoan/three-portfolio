@@ -122,7 +122,7 @@ function HomePanel() {
           </p>
           <button
             type="button"
-            onClick={() => flyTo(STOP_INDEX.loop)}
+            onClick={() => flyTo(STOP_INDEX.web)}
             className="pointer-events-auto mt-6 inline-flex min-h-12 items-center gap-2 rounded-full bg-lantern px-6 font-semibold text-ink shadow-lg transition hover:bg-lantern-soft active:scale-95 md:hidden"
           >
             Start the flight <span aria-hidden>→</span>
@@ -156,7 +156,7 @@ function HomePanel() {
           </ol>
           <button
             type="button"
-            onClick={() => flyTo(STOP_INDEX.loop)}
+            onClick={() => flyTo(STOP_INDEX.web)}
             className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-lantern font-semibold text-ink shadow-lg transition hover:bg-lantern-soft active:scale-[0.98]"
           >
             Start the flight <span aria-hidden>→</span>
@@ -178,12 +178,6 @@ function HomePanel() {
 }
 
 const CAPTIONS: Record<number, { kicker: string; title: string; body: string; align: "left" | "center" }> = {
-  [STOP_INDEX.loop]: {
-    kicker: "Taking off",
-    title: "One lap around the old tree",
-    body: "Then straight down the valley — past everything I've built. Keep scrolling.",
-    align: "center",
-  },
   [STOP_INDEX.web]: {
     kicker: "01 · Web products",
     title: "Shipped for real users",
@@ -242,7 +236,7 @@ function ContactPanel({ visible }: { visible: boolean }) {
 function StopDots() {
   const nearest = useOwlWorld((s) => s.nearestStop);
   const at = uiStop(nearest);
-  const labels = ["Home", "Take-off", "Web products", "3D Lab", "Museum", "Contact"];
+  const labels = ["Home", "Web products", "3D Lab", "Museum", "Contact"];
   return (
     <nav aria-label="Flight progress" className="fixed left-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-2.5 sm:flex">
       {labels.map((label, i) => (
@@ -264,7 +258,6 @@ function StopDots() {
 
 // Where "Next" goes from each stop
 const NEXT_LABEL: Record<number, string> = {
-  [STOP_INDEX.loop]: "Web products",
   [STOP_INDEX.web]: "3D Lab",
   [STOP_INDEX.lab]: "The Museum",
   [STOP_INDEX.museum]: "Contact",

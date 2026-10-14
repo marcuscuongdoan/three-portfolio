@@ -1,6 +1,13 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as THREE from "three";
 import { useGLTF } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
@@ -10,13 +17,22 @@ import { playOwlCall, playVent } from "@/components/owl-world/owlSound";
 import { nextIdleVent, ventSteam } from "@/components/owl-world/steam";
 import { OWL_PAINTS, paintOwl } from "@/components/owl-world/owlPaint";
 import { usePointerCursor } from "@/components/owl-world/Corridor";
-import { headAngles, OWL_Z, OwlPoser, pointerPoint } from "@/components/owl-world/owlPoser";
+import {
+  headAngles,
+  OWL_Z,
+  OwlPoser,
+  pointerPoint,
+} from "@/components/owl-world/owlPoser";
 import { useQuality } from "@/components/owl-world/quality";
-
 
 export interface OwlHandle {
   // Called once per frame by the rig, after it has sampled the flight path
-  update: (dt: number, sample: FlightSample, speed: number, pointer: THREE.Vector2) => void;
+  update: (
+    dt: number,
+    sample: FlightSample,
+    speed: number,
+    pointer: THREE.Vector2,
+  ) => void;
 }
 
 const _r = new THREE.Quaternion();
@@ -24,7 +40,8 @@ const _r = new THREE.Quaternion();
 // wingbeat sound where its wings open (seconds into the clip at normal speed)
 export const CLICK_STRETCH_SPEED = 1.5;
 export const STRETCH_WINGBEATS = [0.55, 1.85, 4.55];
-export const clickWingbeats = () => STRETCH_WINGBEATS.map((t) => t / CLICK_STRETCH_SPEED);
+export const clickWingbeats = () =>
+  STRETCH_WINGBEATS.map((t) => t / CLICK_STRETCH_SPEED);
 
 /** A clicked owl vents hard, and again (softer) as its wings sweep open */
 export function clickVent(owl: THREE.Object3D) {
@@ -35,7 +52,10 @@ export function clickVent(owl: THREE.Object3D) {
 
 /** Now and then an owl lets off a little steam by itself */
 export function idleVent(owl: THREE.Object3D) {
-  ventSteam(owl, { strength: 0.3 + Math.random() * 0.25, sparks: Math.random() < 0.6 });
+  ventSteam(owl, {
+    strength: 0.3 + Math.random() * 0.25,
+    sparks: Math.random() < 0.6,
+  });
   playVent({ quiet: true, strength: 0.7 });
 }
 const _head = new THREE.Vector3();
@@ -54,7 +74,7 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
       mesh.frustumCulled = false; // skinned bounds don't follow the flap
       (mesh.material as THREE.MeshStandardMaterial).envMapIntensity = 1.7;
     });
-    // The guide is charcoal with rainbow wings and tail; the companions get
+    // The guide is silver with rainbow wings and tail; the companions get
     // their own paint
     paintOwl(scene, { ...OWL_PAINTS.charcoal, rainbow: true });
     return new OwlPoser(scene, animations);
@@ -100,7 +120,11 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
         // Sitting owls watch the pointer: the head turns to the point under
         // it, at the owl's own depth
         _head.copy(sample.pos).setY(sample.pos.y + 0.35);
-        const want = headAngles(_head, sample.quat, pointerPoint(camera, pointer, _head, _seen));
+        const want = headAngles(
+          _head,
+          sample.quat,
+          pointerPoint(camera, pointer, _head, _seen),
+        );
         st.look.yaw = THREE.MathUtils.damp(st.look.yaw, want.yaw, 4, dt);
         st.look.pitch = THREE.MathUtils.damp(st.look.pitch, want.pitch, 4, dt);
 
@@ -160,11 +184,15 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
       {/* An easy target round the body: the owl is small on screen */}
       <mesh position-y={0.02} userData={{ noShadow: true }}>
         <sphereGeometry args={[0.36, 12, 10]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+        <meshBasicMaterial
+          transparent
+          opacity={0}
+          depthWrite={false}
+          colorWrite={false}
+        />
       </mesh>
     </group>
   );
 });
 
 export default Owl;
-

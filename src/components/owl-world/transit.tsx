@@ -17,7 +17,6 @@ import { sectionHeight, stopTop } from "@/components/owl-world/useFlightScroll";
 
 const STOP_NAMES: Record<string, string> = {
   home: "Home",
-  loop: "Take-off",
   web: "Web products",
   lab: "3D Lab",
   museum: "The Museum",

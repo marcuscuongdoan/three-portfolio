@@ -8,7 +8,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { CLICK_STRETCH_SPEED, clickVent, clickWingbeats, idleVent } from "@/components/owl-world/Owl";
 import { useQuality } from "@/components/owl-world/quality";
 import { nextIdleVent } from "@/components/owl-world/steam";
-import { OWL_PAINTS, paintOwl } from "@/components/owl-world/owlPaint";
+import { OWL_PAINTS, paintOwl, removeOutline } from "@/components/owl-world/owlPaint";
 import { headAngles, OwlPoser, pointerPoint } from "@/components/owl-world/owlPoser";
 import { playOwlCall } from "@/components/owl-world/owlSound";
 import { usePointerCursor } from "@/components/owl-world/Corridor";
@@ -33,8 +33,9 @@ type Place = PerchPlace | "away";
 function placeAt(p: number): Place {
   if (p < 0.12 || p > LAST_STOP - 0.12) return "home";
   if (Math.abs(p - STOP_INDEX.museum) < 0.45) return "museum";
-  // From the web cards on, each stop's cards until the guide moves on
-  if (p > STOP_INDEX.web - 0.45 && p < STOP_INDEX.lab - 0.5) return "web";
+  // Off the house straight to the web cards, then each stop's cards until
+  // the guide moves on
+  if (p < STOP_INDEX.lab - 0.5) return "web";
   if (p >= STOP_INDEX.lab - 0.5 && p < STOP_INDEX.museum - 0.45) return "lab";
   return "away";
 }
@@ -93,7 +94,7 @@ const SPOTS: Record<PerchPlace, [Spot, Spot]> = {
 
 // Smaller than the guide, each in its own finish
 const SCALES = [0.7, 0.62];
-const PAINTS = [OWL_PAINTS.silver, OWL_PAINTS.white];
+const PAINTS = [OWL_PAINTS.black, OWL_PAINTS.charcoal];
 // The second owl follows the first a beat later
 const STAGGER = 0.45;
 const TAKEOFF = 0.12;
@@ -341,6 +342,8 @@ export default function Companions() {
           if (mesh.isSkinnedMesh) mesh.boundingSphere = sphere;
           else mesh.geometry.boundingSphere = sphere;
         });
+        // Only the guide is outlined: drop any outline the copy brought along
+        removeOutline(model);
         paintOwl(model, PAINTS[i]!);
         return new Companion(model, animations, i);
       }),
