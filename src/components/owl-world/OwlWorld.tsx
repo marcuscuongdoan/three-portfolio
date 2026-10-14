@@ -1,13 +1,13 @@
 "use client";
 
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGLTF, useProgress } from "@react-three/drei";
 import { LAB_APPS, WEB_APPS } from "@/data/apps";
 import { HOLD_STOPS, LAST_STOP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
-import { TransitPill } from "@/components/owl-world/transit";
+import { holdState, landed, pillTurn, TransitPill, transitState } from "@/components/owl-world/transit";
 import { flyTo, useFlightScroll } from "@/components/owl-world/useFlightScroll";
 import ContactCard from "@/components/owl-world/ContactCard";
 import LeaveModal from "@/components/owl-world/LeaveModal";
@@ -301,6 +301,103 @@ function NextStep() {
   );
 }
 
+// Stop names in flight order; scrolling on from contact flies home
+const SECTION_NAMES = ["Home", "Web products", "3D Lab", "The Museum", "Contact"];
+
+/**
+ * The owl is at rest (not flying, not scrolled into a hold screen) and the
+ * transit pill has faded right out, so the hint can have its spot
+ */
+function usePillGone() {
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      setGone((!transitState().moving || landed()) && !holdState() && pillTurn.shown < 0.03);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return gone;
+}
+
+/** One way to scroll: the gesture (which differs for mouse and touch) and where it goes */
+function HintRow({ down, to }: { down: boolean; to: string }) {
+  // A finger swipes the opposite way to a wheel
+  const wheel = down ? "↓" : "↑";
+  const finger = down ? "↑" : "↓";
+  return (
+    <>
+      <motion.span
+        className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-xs text-lantern"
+        animate={{ y: down ? [0, 2, 0] : [0, -2, 0] }}
+        transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+      >
+        <span className="pointer-coarse:hidden">{wheel}</span>
+        <span className="hidden pointer-coarse:inline">{finger}</span>
+      </motion.span>
+      <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.25em] text-lantern">
+        <span className="pointer-coarse:hidden">{down ? "Scroll down" : "Scroll up"}</span>
+        <span className="hidden pointer-coarse:inline">{down ? "Swipe up" : "Swipe down"}</span>
+      </span>
+      <span className="whitespace-nowrap text-sm font-semibold text-moon-50">{to}</span>
+    </>
+  );
+}
+
+/**
+ * Whenever the owl is resting at a stop: where scrolling on and scrolling
+ * back go. Phones keep it up under the nav (the transit pill's spot, empty
+ * while resting); larger screens sit it over the Next button
+ */
+function ScrollHint() {
+  const raw = useOwlWorld((s) => s.activeStop);
+  const active = raw === LAST_STOP ? null : raw;
+  const busy = useOwlWorld((s) => !s.loaded || s.navTarget !== null || !!s.pendingApp || s.cvPrompt);
+  const pillGone = usePillGone();
+  const resting = active !== null && !busy && pillGone ? active : null;
+  // A short beat after landing, so a stop the owl only grazes doesn't flash it
+  const [ready, setReady] = useState<number | null>(null);
+  useEffect(() => {
+    if (resting === null) return;
+    const t = window.setTimeout(() => setReady(resting), 250);
+    return () => window.clearTimeout(t);
+  }, [resting]);
+  const shown = resting !== null && ready === resting ? resting : null;
+  // Hold the pill back until the hint has finished leaving (onExitComplete)
+  useEffect(() => {
+    if (shown !== null) pillTurn.hintUp = true;
+  }, [shown]);
+  useEffect(() => () => void (pillTurn.hintUp = false), []);
+
+  const isHome = active === STOP_INDEX.home;
+  const isContact = active === STOP_INDEX.contact;
+  // Contact: the form fills the right on large screens and a phone on its side
+  const placement = `max-md:top-20 max-md:left-1/2 max-md:-translate-x-1/2 md:right-6 ${isHome ? "md:bottom-6" : "md:bottom-[5.5rem]"} ${isContact ? "md:hidden short:landscape:hidden" : ""}`;
+  return (
+    <div aria-hidden className={`pointer-events-none fixed z-30 ${placement}`}>
+      <AnimatePresence onExitComplete={() => (pillTurn.hintUp = false)}>
+        {shown !== null && (
+          <motion.div
+            key={shown}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } }}
+            // Out quickly: the pill is waiting on it
+            exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
+            className="owl-glass relative grid grid-cols-[auto_auto_1fr] items-center gap-x-2.5 gap-y-1.5 rounded-2xl py-2 pl-2.5 pr-4"
+          >
+            <HintRow down to={SECTION_NAMES[shown + 1] ?? "Home"} />
+            {shown > 0 && <HintRow down={false} to={SECTION_NAMES[shown - 1]!} />}
+            {/* Points down at the Next button it sits over */}
+            {!isHome && <span className="owl-glass absolute -bottom-1.5 right-10 hidden h-3 w-3 rotate-45 rounded-sm md:block" />}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function Loader() {
   const { progress } = useProgress();
   const loaded = useOwlWorld((s) => s.loaded);
@@ -413,6 +510,7 @@ export default function OwlWorld() {
       <StopDots />
       <Overlays />
       <NextStep />
+      <ScrollHint />
       <TransitPill />
       <MailboxTooltip />
       <LeaveModal />

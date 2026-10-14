@@ -37,10 +37,26 @@ export function transitState() {
 }
 
 /**
+ * The pill and the resting scroll hint share a spot on phones, so they take
+ * turns: the hint waits for the pill to fade out, the pill for the hint to go
+ */
+export const pillTurn = { shown: 0, hintUp: false };
+
+/**
+ * The scroll has come to rest on a stop and the owl is close enough that the
+ * stop counts as reached (as for its captions), even while it glides the
+ * last stretch in
+ */
+export function landed() {
+  const stop = Math.round(flight.target);
+  return Math.abs(flight.target - stop) < 1e-3 && Math.abs(flight.current - stop) < 0.08;
+}
+
+/**
  * Resting at a hold stop with the page scrolled into its hold screen: how
  * far through it (0..1), and the stop that comes next. Null elsewhere
  */
-function holdState() {
+export function holdState() {
   const stop = Math.round(flight.current);
   if (!HOLD_STOPS.has(stop) || Math.abs(flight.current - stop) > 0.02) return null;
   const amount = THREE.MathUtils.clamp((window.scrollY - stopTop(stop)) / sectionHeight(), 0, 1);
@@ -142,7 +158,10 @@ export function TransitPill() {
       last = now;
       const { target, along, moving } = transitState();
       const hold = moving ? null : holdState();
-      shown += ((moving || hold ? 1 : 0) - shown) * (1 - Math.exp(-dt * 6));
+      const want = ((moving && !landed()) || hold) && !pillTurn.hintUp ? 1 : 0;
+      // Quick to go, so the hint isn't kept waiting
+      shown += (want - shown) * (1 - Math.exp(-dt * (want ? 6 : 14)));
+      pillTurn.shown = shown;
       const el = box.current;
       if (el) {
         el.style.opacity = shown.toFixed(3);
