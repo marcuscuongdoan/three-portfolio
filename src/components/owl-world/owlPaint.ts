@@ -26,8 +26,21 @@ export interface OwlPaint {
 export const OWL_PAINTS = {
   black: { gain: 0.55, lift: 0.004, tint: "#d0d0d4", roughness: 0.7 },
   charcoal: { gain: 1.05, lift: 0.012, tint: "#d8d8dc" },
-  silver: { gain: 1.7, lift: 0.07, tint: "#dfe5ee", metalness: 0.6, roughness: 0.6, envMap: 0.9 },
-  white: { gain: 2.6, lift: 0.55, tint: "#ffffff", metalness: 0.35, roughness: 1 },
+  silver: {
+    gain: 1.7,
+    lift: 0.07,
+    tint: "#dfe5ee",
+    metalness: 0.6,
+    roughness: 0.6,
+    envMap: 0.9,
+  },
+  white: {
+    gain: 2.6,
+    lift: 0.55,
+    tint: "#ffffff",
+    metalness: 0.35,
+    roughness: 1,
+  },
   // Blue-grey steel with a cool glow round its edges
   steel: {
     gain: 2.1,
@@ -40,21 +53,45 @@ export const OWL_PAINTS = {
   },
 } satisfies Record<string, OwlPaint>;
 
-const RAINBOW = ["#ff3b30", "#ff8a00", "#ffd400", "#2fd158", "#1e90ff", "#4b3bff", "#a24bff"].map(
-  (c) => new THREE.Color(c),
-);
+const RAINBOW = [
+  "#ff3b30",
+  "#ff8a00",
+  "#ffd400",
+  "#2fd158",
+  "#1e90ff",
+  "#4b3bff",
+  "#a24bff",
+].map((c) => new THREE.Color(c));
 // Flight feathers shoulder → tip, red → violet; each covert matches the
 // flight feather it lies over
 const WING_BAND: Record<string, number> = {
-  featherMid_a: 0, featherMid_b: 1, featherMid_c: 2, featherMid_d: 2, featherMid_e: 3,
-  featherMid_f: 4, featherMid_g: 5, featherMid_h: 5, featherMid_i: 6,
-  featherTop_a: 2, featherTop_b: 4, featherTop_c: 5, featherTop_d: 5,
-  featherBttom_a: 2, featherBttom_b: 4, featherBttom_c: 5, featherBttom_d: 5,
+  featherMid_a: 0,
+  featherMid_b: 1,
+  featherMid_c: 2,
+  featherMid_d: 2,
+  featherMid_e: 3,
+  featherMid_f: 4,
+  featherMid_g: 5,
+  featherMid_h: 5,
+  featherMid_i: 6,
+  featherTop_a: 2,
+  featherTop_b: 4,
+  featherTop_c: 5,
+  featherTop_d: 5,
+  featherBttom_a: 2,
+  featherBttom_b: 4,
+  featherBttom_c: 5,
+  featherBttom_d: 5,
 };
 // The seven tail feathers, owl's left → right
 const TAIL_BAND: Record<string, number> = {
-  tailFeather_c_l: 0, tailFeather_b_l: 1, tailFeather_a_l: 2, tailFeather_c: 3,
-  tailFeather_a_r: 4, tailFeather_b_r: 5, tailFeather_c_r: 6,
+  tailFeather_c_l: 0,
+  tailFeather_b_l: 1,
+  tailFeather_a_l: 2,
+  tailFeather_c: 3,
+  tailFeather_a_r: 4,
+  tailFeather_b_r: 5,
+  tailFeather_c_r: 6,
 };
 
 /** Rainbow band of a bone, or -1: tip bones colour with their feather */
@@ -82,7 +119,9 @@ function markRainbow(root: THREE.Object3D) {
       const bands = mesh.skeleton.bones.map((b) => bandOf(b.name));
       for (let i = 0; i < count; i++) {
         let best = 0;
-        for (let c = 1; c < 4; c++) if (weights.getComponent(i, c) > weights.getComponent(i, best)) best = c;
+        for (let c = 1; c < 4; c++)
+          if (weights.getComponent(i, c) > weights.getComponent(i, best))
+            best = c;
         const band = bands[joints.getComponent(i, best)] ?? -1;
         if (band < 0) continue;
         RAINBOW[band]!.toArray(data, i * 4);
@@ -111,16 +150,25 @@ export function paintOwl(root: THREE.Object3D, paint: OwlPaint) {
         uPaint: { value: new THREE.Vector2(paint.gain, paint.lift) },
         uTint: { value: new THREE.Color(paint.tint) },
         uGlowColor: { value: new THREE.Color(paint.glow?.color ?? "#000000") },
-        uGlow: { value: new THREE.Vector2(paint.glow?.rim ?? 0, paint.glow?.base ?? 0) },
+        uGlow: {
+          value: new THREE.Vector2(paint.glow?.rim ?? 0, paint.glow?.base ?? 0),
+        },
       };
       // Programs are cached by onBeforeCompile's source, the same for every paint
-      mat.customProgramCacheKey = () => (paint.rainbow ? "owl-paint-rainbow" : "owl-paint");
+      mat.customProgramCacheKey = () =>
+        paint.rainbow ? "owl-paint-rainbow" : "owl-paint";
       mat.onBeforeCompile = (shader) => {
         Object.assign(shader.uniforms, uniforms);
         if (paint.rainbow) {
           shader.vertexShader = shader.vertexShader
-            .replace("void main() {", "attribute vec4 aRainbow;\nvarying vec4 vRainbow;\nvoid main() {")
-            .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRainbow = aRainbow;");
+            .replace(
+              "void main() {",
+              "attribute vec4 aRainbow;\nvarying vec4 vRainbow;\nvoid main() {",
+            )
+            .replace(
+              "#include <begin_vertex>",
+              "#include <begin_vertex>\nvRainbow = aRainbow;",
+            );
         }
         shader.fragmentShader = shader.fragmentShader
           .replace(
@@ -139,8 +187,10 @@ export function paintOwl(root: THREE.Object3D, paint: OwlPaint) {
               vec3 painted = clamp(vec3(lum * uPaint.x + uPaint.y), 0.0, 1.0) * uTint;
               ${
                 paint.rainbow
-                  ? // Kept dark with no lift, so the metal's own detail shows through
-                    "painted = mix(painted, clamp(vec3(lum * 1.6 + 0.01), 0.0, 1.0) * vRainbow.rgb, vRainbow.a);"
+                  ? // Muted (half way to grey) and dark with no lift, so the metal's
+                    // own detail shows through; laid on partly, over the paint
+                    "vec3 hue = mix(vec3(dot(vRainbow.rgb, vec3(0.299, 0.587, 0.114))), vRainbow.rgb, 0.25);\n" +
+                    "painted = mix(painted, clamp(vec3(lum * 0.5 + 0.005), 0.0, 1.0) * hue, vRainbow.a * 0.75);"
                   : ""
               }
               diffuseColor.rgb = mix(painted, c, brass);
@@ -180,11 +230,23 @@ export function removeOutline(root: THREE.Object3D) {
 
 export const OUTLINE_COLOR = "#a9c4e6";
 
-export function addOutline(root: THREE.Object3D, color: THREE.ColorRepresentation = OUTLINE_COLOR, width = 0.0018, opacity = 0.5) {
+export function addOutline(
+  root: THREE.Object3D,
+  color: THREE.ColorRepresentation = OUTLINE_COLOR,
+  width = 0.0018,
+  opacity = 0.5,
+) {
   if (root.userData.outlined) return;
   removeOutline(root);
   root.userData.outlined = true;
-  const material = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, toneMapped: false, transparent: true, opacity, depthWrite: false });
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    side: THREE.BackSide,
+    toneMapped: false,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+  });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uOutline = { value: width };
     shader.vertexShader = shader.vertexShader
@@ -200,7 +262,8 @@ export function addOutline(root: THREE.Object3D, color: THREE.ColorRepresentatio
   };
   const meshes: THREE.SkinnedMesh[] = [];
   root.traverse((o) => {
-    if ((o as THREE.SkinnedMesh).isSkinnedMesh && !o.userData.outline) meshes.push(o as THREE.SkinnedMesh);
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh && !o.userData.outline)
+      meshes.push(o as THREE.SkinnedMesh);
   });
   for (const mesh of meshes) {
     const line = new THREE.SkinnedMesh(mesh.geometry, material);
