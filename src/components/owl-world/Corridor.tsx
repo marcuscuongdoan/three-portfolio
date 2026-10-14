@@ -30,9 +30,11 @@ const cardPosition = (startZ: number, i: number): [number, number, number] => [
 ];
 const cardSeed = (startZ: number, i: number) => i * 1.9 + startZ;
 /** The top edge of the i-th web products card, and its bob (the companions sit on it) */
-export function webCardTop(i: number) {
-  const [x, y, z] = cardPosition(WEB_START, i);
-  return { pos: new THREE.Vector3(x, y + CARD_H / 2 + 0.045, z), seed: cardSeed(WEB_START, i) };
+/** The top edge of a card in the web or the 3D lab row, for an owl to sit on */
+export function cardTop(row: "web" | "lab", i: number) {
+  const start = row === "web" ? WEB_START : LAB_START;
+  const [x, y, z] = cardPosition(start, i);
+  return { pos: new THREE.Vector3(x, y + CARD_H / 2 + 0.045, z), seed: cardSeed(start, i) };
 }
 const FACE_ANGLE = 0.95;
 

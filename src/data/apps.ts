@@ -49,7 +49,7 @@ const labApps: ShowcaseApp[] = [
     description: "Take the CRF1100L apart, open every part for its specifications, then ride it through desert and city.",
     url: "/africa-twin",
     external: false,
-    image: "/africa-twin/opengraph-image.png",
+    image: "/museum/africa-twin.webp",
     accent: "#d64541",
   },
   {
@@ -60,7 +60,7 @@ const labApps: ShowcaseApp[] = [
     description: "Explode the 890 cc CP3 triple — Öhlins, KYB, Brembo Stylema, 6-axis IMU — and take it for a ride.",
     url: "/mt-09",
     external: false,
-    image: "/mt-09/opengraph-image.png",
+    image: "/museum/mt-09.webp",
     accent: "#3d6fd8",
   },
   {
@@ -71,7 +71,7 @@ const labApps: ShowcaseApp[] = [
     description: "The 1,170 cc air/oil-cooled boxer in 3D: Paralever, shaft drive, twin discs and that round headlight.",
     url: "/r-ninet-pure",
     external: false,
-    image: "/r-ninet-pure/opengraph-image.png",
+    image: "/museum/r-ninet-pure.webp",
     accent: "#2f8fd0",
   },
   {
@@ -82,7 +82,7 @@ const labApps: ShowcaseApp[] = [
     description: "Lift the bonnet, swing out the doors and tailgate, read the specs, then drive it off-road.",
     url: "/g63",
     external: false,
-    image: "/g63/opengraph-image.png",
+    image: "/museum/g63.webp",
     accent: "#8a8f98",
   },
   {
@@ -93,7 +93,7 @@ const labApps: ShowcaseApp[] = [
     description: "A packaged gas-turbine unit: open each part, then simulate a blackout and watch it pick up the safety buses.",
     url: "/gas-turbine",
     external: false,
-    image: "/gas-turbine/opengraph-image.png",
+    image: "/museum/gas-turbine.webp",
     accent: "#e0a23a",
   },
   {
@@ -104,7 +104,7 @@ const labApps: ShowcaseApp[] = [
     description: "A League-inspired camp at dusk: pick a legend, watch them step up to the fire.",
     url: "/trial",
     external: false,
-    image: "/trial/opengraph-image.png",
+    image: "/museum/trial.webp",
     accent: "#c89b3c",
   },
   {
@@ -115,7 +115,7 @@ const labApps: ShowcaseApp[] = [
     description: "Swap Miss Fortune's skins live on an animated 3D model, League of Legends client style.",
     url: "/legends/miss-fortune",
     external: false,
-    image: "/legends/miss-fortune/opengraph-image.png",
+    image: "/museum/miss-fortune.webp",
     accent: "#0ac8b9",
   },
 ];

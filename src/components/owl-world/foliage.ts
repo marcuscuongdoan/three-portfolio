@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /**
  * Procedural trees: branching bark (tapered cylinders, each limb splitting
@@ -124,31 +124,65 @@ export function makeNeedleTexture(seed = 2) {
   );
 }
 
-/** Grass blades for ground tufts */
+/** Grass blades for ground tufts: fine, varied, curving, paler at the tips */
 export function makeGrassTexture(seed = 3) {
   return canvasTexture(
     128,
     128,
     (ctx, rand) => {
-      for (let i = 0; i < 42; i++) {
-        const x = 10 + rand() * 108;
-        const h = 50 + rand() * 75;
-        const lean = (rand() - 0.5) * 40;
-        const w = 2 + rand() * 3;
-        const hue = 75 + rand() * 30;
+      for (let i = 0; i < 70; i++) {
+        const x = 8 + rand() * 112;
+        const h = 45 + rand() * 80;
+        const lean = (rand() - 0.5) * 50;
+        const w = 1.2 + rand() * 2.2;
+        // Mostly green, a few olive or straw blades among them
+        const hue = rand() < 0.15 ? 55 + rand() * 15 : 80 + rand() * 30;
         const g = ctx.createLinearGradient(0, 128, 0, 128 - h);
-        g.addColorStop(0, hsl(hue, 40, 14));
-        g.addColorStop(1, hsl(hue, 45, 34 + rand() * 12));
+        g.addColorStop(0, hsl(hue, 40, 12));
+        g.addColorStop(0.6, hsl(hue, 45, 28 + rand() * 10));
+        g.addColorStop(1, hsl(hue - 5, 40, 42 + rand() * 12));
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.moveTo(x - w, 128);
-        ctx.quadraticCurveTo(x + lean * 0.3, 128 - h * 0.6, x + lean, 128 - h);
-        ctx.quadraticCurveTo(x + lean * 0.3 + w * 0.5, 128 - h * 0.6, x + w, 128);
+        ctx.quadraticCurveTo(x + lean * 0.2, 128 - h * 0.55, x + lean, 128 - h);
+        ctx.quadraticCurveTo(x + lean * 0.2 + w * 0.6, 128 - h * 0.55, x + w, 128);
         ctx.fill();
       }
     },
     seed,
   );
+}
+
+/** Soft blotches of greens and earth, for the ground under the grass */
+export function makeGroundTexture(seed = 5) {
+  const tex = canvasTexture(
+    256,
+    256,
+    (ctx, rand) => {
+      ctx.fillStyle = "#4f6040";
+      ctx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 140; i++) {
+        const x = rand() * 256;
+        const y = rand() * 256;
+        const r = 10 + rand() * 40;
+        const c = rand() < 0.25 ? hsl(45 + rand() * 10, 25, 30 + rand() * 8) : hsl(85 + rand() * 25, 25 + rand() * 15, 26 + rand() * 12);
+        // Drawn at the wrapped positions too, so the tile has no seams
+        for (const ox of [-256, 0, 256])
+          for (const oy of [-256, 0, 256]) {
+            const g = ctx.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+            g.addColorStop(0, c);
+            g.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.globalAlpha = 0.35;
+            ctx.fillStyle = g;
+            ctx.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
+          }
+      }
+      ctx.globalAlpha = 1;
+    },
+    seed,
+  );
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
 }
 
 /** Vertical bark furrows */
@@ -204,6 +238,11 @@ export function foliageMaterial(map: THREE.Texture, extra: THREE.MeshStandardMat
   return m;
 }
 
+/** The solid part of a crown: its vertex colours carry the shading */
+export function crownMaterial(color: THREE.ColorRepresentation) {
+  return new THREE.MeshStandardMaterial({ color, vertexColors: true, roughness: 0.9, metalness: 0 });
+}
+
 // ---------------------------------------------------------------- geometry
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -215,28 +254,46 @@ interface Limb {
   r1: number;
 }
 
+// Limbs thinner than this get no rounded joint: too fine to see, too many to pay for
+const JOINT_MIN_RADIUS = 0.03;
+
 function limbGeometry(limbs: Limb[], radial = 7) {
-  const parts = limbs.map(({ a, b, r0, r1 }) => {
+  const parts = limbs.flatMap(({ a, b, r0, r1 }) => {
     const dir = new THREE.Vector3().subVectors(b, a);
     const len = dir.length();
-    const g = new THREE.CylinderGeometry(r1, r0, len, radial, 1, true);
+    // Trunks and boughs are close enough to show their facets
+    const sides = r0 > 0.1 ? 12 : radial;
+    const g = new THREE.CylinderGeometry(r1, r0, len, sides, 1, true);
     // Bark texture runs along the limb, about one repeat per metre
     const uv = g.attributes.uv!;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * Math.max(1, Math.round(r0 * 12)), uv.getY(i) * len);
     g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(UP, dir.normalize()));
     g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-    return g;
+    if (r1 < JOINT_MIN_RADIUS) return [g];
+    // A ball at the far end rounds the elbow into the next limb (or caps the tip)
+    const joint = new THREE.SphereGeometry(r1, sides, Math.max(4, sides >> 1));
+    joint.translate(b.x, b.y, b.z);
+    return [g, joint];
   });
   const merged = mergeGeometries(parts)!;
   parts.forEach((p) => p.dispose());
   return merged;
 }
 
+// Vertex colour multipliers for foliage: healthy, and turning rust-brown
+// (over a green material, the rust reads as olive-bronze)
+const GREEN = [0.96, 1, 0.9] as const;
+const RUST = [1.5, 0.82, 0.5] as const;
+
 class CardBuilder {
   pos: number[] = [];
   nor: number[] = [];
   uv: number[] = [];
   idx: number[] = [];
+  // Per vertex: distance from the crown's centre, and the card's own tone
+  depth: number[] = [];
+  tone: number[] = [];
+  rust: number[] = [];
   /** A quad centred at `c`, spanning `u` and `v` (half extents), lit as if on a sphere round `centre` */
   add(c: THREE.Vector3, u: THREE.Vector3, v: THREE.Vector3, centre: THREE.Vector3, uv: [number, number, number, number] = [0, 0, 1, 1]) {
     const base = this.pos.length / 3;
@@ -248,12 +305,21 @@ class CardBuilder {
     ];
     const p = new THREE.Vector3();
     const n = new THREE.Vector3();
+    // A cheap hash of the card's index: each card a shade lighter or darker
+    const hash = Math.sin(base * 12.9898) * 43758.5453;
+    const tone = 0.86 + 0.24 * (hash - Math.floor(hash));
+    // About a quarter of the cards are turning rust-brown
+    const turn = Math.sin(base * 78.233) * 12543.21;
+    const rust = turn - Math.floor(turn) < 0.25 ? 1 : 0;
     for (const [su, sv, tu, tv] of corners) {
       p.copy(c).addScaledVector(u, su).addScaledVector(v, sv);
       n.subVectors(p, centre).normalize().lerp(UP, 0.25).normalize();
       this.pos.push(p.x, p.y, p.z);
       this.nor.push(n.x, n.y, n.z);
       this.uv.push(tu, tv);
+      this.depth.push(p.distanceTo(centre));
+      this.tone.push(tone);
+      this.rust.push(rust);
     }
     this.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -262,6 +328,15 @@ class CardBuilder {
     g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute("normal", new THREE.Float32BufferAttribute(this.nor, 3));
     g.setAttribute("uv", new THREE.Float32BufferAttribute(this.uv, 2));
+    // Vertex colours: deep inside the crown is in its own shade, the rim is lit
+    const reach = Math.max(...this.depth, 1e-3);
+    const col: number[] = [];
+    this.depth.forEach((d, i) => {
+      const lit = (0.45 + 0.55 * Math.pow(d / reach, 0.8)) * this.tone[i]!;
+      const [r, g, b] = this.rust[i] ? RUST : GREEN;
+      col.push(lit * r, lit * g, lit * b);
+    });
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
     g.setIndex(this.idx);
     g.computeBoundingSphere();
     return g;
@@ -282,7 +357,106 @@ function spread(dir: THREE.Vector3, angle: number, rand: Rand, bias: THREE.Vecto
 
 export interface TreeGeometry {
   bark: THREE.BufferGeometry;
+  // A light fringe of leaf cards over the crown
   leaves: THREE.BufferGeometry;
+  // The crown's solid, softly lumpy volume (vertex coloured)
+  crown: THREE.BufferGeometry;
+}
+
+// ------------------------------------------------------------------ crowns
+
+interface Blob {
+  c: THREE.Vector3;
+  r: number;
+}
+
+// Directions a blob's reach is tested along against an `exclude`
+const PROBES = [
+  [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+  [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1], [-1, 1, 1], [-1, 1, -1], [-1, -1, 1], [-1, -1, -1],
+].map(([x, y, z]) => new THREE.Vector3(x, y, z).normalize());
+
+/** Shrink a blob until no part of it reaches into `exclude`; null if it can't fit */
+function fitBlob(b: Blob, exclude?: (p: THREE.Vector3) => boolean): Blob | null {
+  if (!exclude) return b;
+  const p = new THREE.Vector3();
+  for (const k of [1, 0.75, 0.55]) {
+    const r = b.r * k;
+    if (!exclude(b.c) && PROBES.every((d) => !exclude(p.copy(b.c).addScaledVector(d, r)))) return { c: b.c, r };
+  }
+  return null;
+}
+
+/**
+ * Lumpy spheres merged into one crown: each a subdivided icosahedron pushed
+ * in and out by a little noise, its bottom flattened, lit on top and in the
+ * crown's shade underneath and toward the middle. Normals lean out from
+ * `centre` so the crown shades as one soft mass.
+ */
+function blobGeometry(blobs: Blob[], centre: THREE.Vector3, rand: Rand, detail = 2) {
+  const reach = Math.max(...blobs.map((b) => b.c.distanceTo(centre) + b.r), 1e-3);
+  const parts = blobs.map((b) => {
+    const ico = new THREE.IcosahedronGeometry(1, detail);
+    ico.deleteAttribute("normal");
+    ico.deleteAttribute("uv");
+    const g = mergeVertices(ico);
+    ico.dispose();
+    const pos = g.attributes.position!;
+    const phase = [rand() * 6.3, rand() * 6.3, rand() * 6.3, rand() * 6.3];
+    const tone = 0.88 + rand() * 0.22;
+    const [cr, cg, cb] = rand() < 0.33 ? RUST : GREEN;
+    const col = new Float32Array(pos.count * 3);
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const n =
+        0.16 * Math.sin(v.x * 4.1 + phase[0]!) * Math.sin(v.y * 3.7 + phase[1]!) * Math.sin(v.z * 4.3 + phase[2]!) +
+        0.07 * Math.sin(v.x * 9 + v.z * 7 + phase[3]!);
+      const top = v.y * 0.5 + 0.5;
+      const k = b.r * (1 + n);
+      pos.setXYZ(i, b.c.x + v.x * k, b.c.y + v.y * k * (v.y < 0 ? 0.72 : 1), b.c.z + v.z * k);
+      v.fromBufferAttribute(pos, i);
+      const lit = (0.5 + 0.5 * top) * (0.68 + 0.32 * Math.min(1, v.distanceTo(centre) / reach)) * tone;
+      col.set([lit * cr, lit * cg, lit * cb], i * 3);
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    // Lean the normals out from the crown's centre
+    const nor = g.attributes.normal!;
+    const n = new THREE.Vector3();
+    const out = new THREE.Vector3();
+    for (let i = 0; i < nor.count; i++) {
+      n.fromBufferAttribute(nor, i);
+      out.fromBufferAttribute(pos, i).sub(centre).normalize();
+      n.lerp(out, 0.45).normalize();
+      nor.setXYZ(i, n.x, n.y, n.z);
+    }
+    return g;
+  });
+  const merged = mergeGeometries(parts)!;
+  parts.forEach((g) => g.dispose());
+  return merged;
+}
+
+/** Leaf cards scattered over the blobs' surfaces, mostly on their upper sides */
+function fringeCards(cards: CardBuilder, blobs: Blob[], centre: THREE.Vector3, size: number, perBlob: number, rand: Rand, exclude?: (p: THREE.Vector3) => boolean) {
+  const d = new THREE.Vector3();
+  const u = new THREE.Vector3();
+  const v = new THREE.Vector3();
+  for (const b of blobs) {
+    for (let k = 0; k < perBlob; k++) {
+      randomUnit(rand, d);
+      d.y = Math.abs(d.y) * 0.8 - 0.15;
+      d.normalize();
+      const c = b.c.clone().addScaledVector(d, b.r * (0.88 + rand() * 0.2));
+      if (exclude?.(c)) continue;
+      const s = size * (0.55 + rand() * 0.4);
+      randomUnit(rand, u).multiplyScalar(s / 2);
+      v.crossVectors(randomUnit(rand, new THREE.Vector3()), u).normalize().multiplyScalar(s / 2);
+      if (v.lengthSq() < 1e-6) continue;
+      cards.add(c, u.clone(), v.clone(), centre);
+    }
+  }
 }
 
 export interface BroadleafOptions {
@@ -294,12 +468,16 @@ export interface BroadleafOptions {
   levels?: number;
   // Every limb also leans this way (e.g. away from something it must clear)
   lean?: THREE.Vector3;
+  // Leaf card size; the crown's blobs are sized from it too
   cardSize?: number;
-  cardsPerTip?: number;
-  // Extra cards scattered through the crown's volume
-  fillCards?: number;
-  // Leaf cards for which this returns true are left out
+  // Leaf cards over each blob
+  fringe?: number;
+  // Big blobs through the middle of the crown
+  innerBlobs?: number;
+  // Nothing of the crown (blob or card) reaches where this returns true
   exclude?: (p: THREE.Vector3) => boolean;
+  // Subdivision of the crown's blobs: 1 (80 faces each) is plenty far off
+  crownDetail?: number;
 }
 
 /** A broadleaf tree with its root at the origin */
@@ -311,9 +489,10 @@ export function broadleafTree({
   levels = 3,
   lean = new THREE.Vector3(),
   cardSize = 0.85,
-  cardsPerTip = 7,
-  fillCards = 40,
+  fringe = 6,
+  innerBlobs = 2,
   exclude,
+  crownDetail = 2,
 }: BroadleafOptions): TreeGeometry {
   const rand = mulberry32(seed);
   const limbs: Limb[] = [];
@@ -346,37 +525,28 @@ export function broadleafTree({
   const centre = tips.reduce((c, t) => c.add(t.p), new THREE.Vector3()).divideScalar(tips.length);
   centre.y -= height * 0.08;
 
-  const cards = new CardBuilder();
-  const u = new THREE.Vector3();
-  const v = new THREE.Vector3();
-  const c = new THREE.Vector3();
-  for (const tip of tips) {
-    for (let k = 0; k < cardsPerTip; k++) {
-      c.copy(tip.p).addScaledVector(randomUnit(rand, u), cardSize * 0.55).addScaledVector(tip.d, cardSize * 0.2);
-      if (exclude?.(c)) continue;
-      const size = cardSize * (0.75 + rand() * 0.5);
-      randomUnit(rand, u).multiplyScalar(size / 2);
-      v.crossVectors(randomUnit(rand, c.clone()), u).normalize().multiplyScalar(size / 2);
-      if (v.lengthSq() < 1e-6) continue;
-      cards.add(c, u, v, centre);
-    }
+  // Blobs: one round every few tips, spaced so they overlap a little...
+  const blobs: Blob[] = [];
+  const r0 = cardSize * 1.25;
+  const order = tips.map((t) => t.p).sort(() => rand() - 0.5);
+  for (const p of order) {
+    if (blobs.some((b) => b.c.distanceTo(p) < r0 * 1.1)) continue;
+    const fit = fitBlob({ c: p.clone().addScaledVector(UP, cardSize * 0.15), r: r0 * (0.85 + rand() * 0.4) }, exclude);
+    if (fit) blobs.push(fit);
   }
-  // Fill: cards through an ellipsoid round the tips, denser toward the middle
+  // ...and a few big ones through the middle, so no sky shows through the crown
   const box = new THREE.Box3().setFromPoints(tips.map((t) => t.p));
   const mid = box.getCenter(new THREE.Vector3());
-  const half = box.getSize(new THREE.Vector3()).multiplyScalar(0.5).addScalar(cardSize * 0.3);
-  for (let k = 0; k < fillCards; k++) {
-    randomUnit(rand, c).multiplyScalar(Math.pow(rand(), 0.6));
-    c.multiply(half).add(mid);
-    if (c.y < mid.y - half.y * 0.6) c.y = mid.y - half.y * 0.6 + rand() * 0.3;
-    if (exclude?.(c)) continue;
-    const size = cardSize * (0.9 + rand() * 0.5);
-    randomUnit(rand, u).multiplyScalar(size / 2);
-    v.crossVectors(randomUnit(rand, new THREE.Vector3()), u).normalize().multiplyScalar(size / 2);
-    if (v.lengthSq() < 1e-6) continue;
-    cards.add(c, u, v, centre);
+  const half = box.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  const inner = Math.max(r0, Math.min(half.x, half.z) * 0.7);
+  for (let k = 0; k < innerBlobs; k++) {
+    const c = k === 0 ? mid.clone() : mid.clone().add(randomUnit(rand, new THREE.Vector3()).multiply(half).multiplyScalar(0.5));
+    const fit = fitBlob({ c, r: inner * (k === 0 ? 1 : 0.75) }, exclude);
+    if (fit) blobs.push(fit);
   }
-  return { bark: limbGeometry(limbs), leaves: cards.build() };
+  const cards = new CardBuilder();
+  fringeCards(cards, blobs, centre, cardSize, fringe, rand, exclude);
+  return { bark: limbGeometry(limbs), leaves: cards.build(), crown: blobGeometry(blobs, centre, rand, crownDetail) };
 }
 
 export interface ConiferOptions {
@@ -414,45 +584,131 @@ export function coniferTree({ seed, height = 8, trunkRadius = 0.18, width = 2.4 
       const half = new THREE.Vector3().copy(along).multiplyScalar(len * 0.55);
       const side = across.clone().multiplyScalar(0.32 + (1 - k) * 0.12).applyAxisAngle(along, tilt);
       const mid = new THREE.Vector3(0, y, 0).addScaledVector(along, len * 0.55);
+      // One spray per branch: a needle fringe round the tiers
       cards.add(mid, half, side, centre);
-      // A second, steeper card makes the spray read from above and below
-      cards.add(mid, half, side.clone().applyAxisAngle(along, 1.2), centre);
     }
   }
   // The leader at the very top
   const topMid = new THREE.Vector3(0, height - 0.2, 0);
   cards.add(topMid, new THREE.Vector3(0, 0.45, 0), new THREE.Vector3(0.22, 0, 0), centre, [0, 0, 1, 1]);
   cards.add(topMid, new THREE.Vector3(0, 0.45, 0), new THREE.Vector3(0, 0, 0.22), centre, [0, 0, 1, 1]);
-  return { bark: limbGeometry(limbs, 6), leaves: cards.build() };
+  return { bark: limbGeometry(limbs, 6), leaves: cards.build(), crown: coniferTiers(height, width, firstWhorl, rand) };
 }
 
-/** A low shrub: leaf cards in a squashed dome, no visible wood */
-export function bushGeometry(seed: number, radius = 0.7): THREE.BufferGeometry {
+/**
+ * A pine's body: stacked cones, narrowing up the trunk, each skirt drooping in
+ * scallops, lit on top and shaded under each tier and toward the bottom
+ */
+function coniferTiers(height: number, width: number, from: number, rand: Rand) {
+  const tiers = 6;
+  const parts: THREE.BufferGeometry[] = [];
+  for (let t = 0; t < tiers; t++) {
+    const k = t / (tiers - 1);
+    const h = height * 0.3 * (1 - k * 0.45);
+    const r = width * (1 - k * 0.85) * 0.95 + 0.3;
+    const base = from + (height - from - h * 0.8) * Math.pow(k, 0.9);
+    const cone = new THREE.ConeGeometry(r, h, 14, 3);
+    cone.deleteAttribute("normal");
+    cone.deleteAttribute("uv");
+    const g = mergeVertices(cone);
+    cone.dispose();
+    const pos = g.attributes.position!;
+    const col = new Float32Array(pos.count * 3);
+    const phase = rand() * 6.3;
+    const tone = 0.88 + rand() * 0.2;
+    for (let i = 0; i < pos.count; i++) {
+      let x = pos.getX(i);
+      let y = pos.getY(i);
+      let z = pos.getZ(i);
+      const rad = Math.hypot(x, z);
+      if (rad > 1e-4) {
+        const a = Math.atan2(z, x);
+        const rim = rad / r;
+        // Scalloped, drooping skirt; a little unevenness all over
+        y -= rim * rim * (0.5 + 0.5 * Math.sin(a * 6 + phase)) * h * 0.18;
+        const wobble = 1 + 0.07 * Math.sin(a * 9 + phase * 2 + y * 3);
+        x *= wobble;
+        z *= wobble;
+      }
+      const up = (y + h / 2) / h;
+      const lit = (0.5 + 0.5 * Math.min(1, Math.max(0, up))) * (0.78 + 0.22 * k) * tone;
+      col.set([lit * 0.92, lit, lit * 0.95], i * 3);
+      pos.setXYZ(i, x, y + base + h / 2, z);
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    // Lean normals up and out from the trunk so each tier reads as soft foliage
+    const nor = g.attributes.normal!;
+    const n = new THREE.Vector3();
+    const out = new THREE.Vector3();
+    for (let i = 0; i < nor.count; i++) {
+      n.fromBufferAttribute(nor, i);
+      out.set(pos.getX(i), r * 0.6, pos.getZ(i)).normalize();
+      n.lerp(out, 0.4).normalize();
+      nor.setXYZ(i, n.x, n.y, n.z);
+    }
+    parts.push(g);
+  }
+  const merged = mergeGeometries(parts)!;
+  parts.forEach((g) => g.dispose());
+  return merged;
+}
+
+/** A low shrub: a few lumpy blobs in a squashed dome with a leaf fringe, no visible wood */
+export function bushGeometry(seed: number, radius = 0.7): { crown: THREE.BufferGeometry; leaves: THREE.BufferGeometry } {
   const rand = mulberry32(seed);
-  const cards = new CardBuilder();
   const centre = new THREE.Vector3(0, radius * 0.2, 0);
-  const u = new THREE.Vector3();
-  const v = new THREE.Vector3();
-  const c = new THREE.Vector3();
-  for (let i = 0; i < 26; i++) {
-    randomUnit(rand, c);
-    c.y = Math.abs(c.y) * 0.75;
-    c.multiplyScalar(radius * (0.4 + rand() * 0.6));
-    const size = radius * (0.7 + rand() * 0.5);
-    randomUnit(rand, u).multiplyScalar(size / 2);
-    v.crossVectors(randomUnit(rand, new THREE.Vector3()), u).normalize().multiplyScalar(size / 2);
-    cards.add(c.clone(), u.clone(), v.clone(), centre);
+  const blobs: Blob[] = [{ c: new THREE.Vector3(0, radius * 0.45, 0), r: radius * 0.7 }];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + rand() * 0.8;
+    const d = radius * (0.45 + rand() * 0.2);
+    blobs.push({ c: new THREE.Vector3(Math.cos(a) * d, radius * (0.3 + rand() * 0.15), Math.sin(a) * d), r: radius * (0.45 + rand() * 0.15) });
   }
-  return cards.build();
+  const cards = new CardBuilder();
+  fringeCards(cards, blobs, centre, radius * 1.1, 4, rand);
+  return { crown: blobGeometry(blobs, centre, rand), leaves: cards.build() };
 }
 
-/** Two crossed upright quads, base on the ground: one tuft of grass */
-export function grassTuftGeometry(width = 0.55, height = 0.38): THREE.BufferGeometry {
-  const cards = new CardBuilder();
-  const centre = new THREE.Vector3(0, -2, 0); // normals mostly up: grass catches the sky
-  for (const a of [0, Math.PI / 2]) {
-    const u = new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(width / 2);
-    cards.add(new THREE.Vector3(0, height / 2, 0), u, new THREE.Vector3(0, height / 2, 0), centre);
+/**
+ * One tuft of grass: three cards round the centre, each bending outward and
+ * over as it rises (a few rows of vertices, so the wind bends it too)
+ */
+export function grassTuftGeometry(width = 0.55, height = 0.4): THREE.BufferGeometry {
+  const rows = 3;
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  const n = new THREE.Vector3();
+  for (let c = 0; c < 3; c++) {
+    const a = (c / 3) * Math.PI;
+    const along = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    const out = new THREE.Vector3(-along.z, 0, along.x).multiplyScalar(c % 2 ? 1 : -1);
+    const base = pos.length / 3;
+    for (let r = 0; r <= rows; r++) {
+      const k = r / rows;
+      // The card droops outward more toward its top, and sinks a little
+      const bend = k * k * height * 0.45;
+      const y = height * k * (1 - k * k * 0.12);
+      for (const side of [-1, 1]) {
+        const p = along.clone().multiplyScalar((side * width) / 2).addScaledVector(out, bend);
+        pos.push(p.x, y, p.z);
+        // Mostly up, so the tuft catches the sky like the meadow round it
+        n.copy(out).multiplyScalar(0.35).add(new THREE.Vector3(0, 1, 0)).normalize();
+        nor.push(n.x, n.y, n.z);
+        uv.push(side < 0 ? 0 : 1, k);
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      const i = base + r * 2;
+      idx.push(i, i + 1, i + 3, i, i + 3, i + 2);
+    }
   }
-  return cards.build();
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
+  return g;
 }

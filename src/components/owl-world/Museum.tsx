@@ -7,7 +7,10 @@ import { LAB_APPS, ShowcaseApp } from "@/data/apps";
 import { MUSEUM_CENTER, MUSEUM_RADIUS, MUSEUM_WALL_STEP, MUSEUM_WALLS, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { makeFrameArt, makeSign } from "@/components/owl-world/cardTexture";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
+import { useQuality } from "@/components/owl-world/quality";
+import MergeStatic from "@/components/owl-world/MergeStatic";
 import { roundedRectGeometry, usePointerCursor } from "@/components/owl-world/Corridor";
+import { stoneMaterial } from "@/components/owl-world/stone";
 
 /**
  * An open-air gallery of the 3D lab: three walls on an arc in front of the
@@ -46,7 +49,6 @@ const WALL_TITLES: [string, string][] = [
 ];
 
 const COLORS = {
-  wall: "#43596f",
   trim: "#efe5d3",
   gold: "#c9a45c",
   floor: "#a9a6b6",
@@ -273,24 +275,62 @@ function Placard({ title, kicker, position }: { title: string; kicker: string; p
   );
 }
 
-function Column({ height }: { height: number }) {
+// A memorial wall: deep dressed limestone growing back from the face the
+// frames hang on, on granite steps, under a granite frieze and a cornice
+const MEMORIAL_D = 0.7;
+const MEMORIAL_Z = WALL_T / 2 - MEMORIAL_D / 2;
+const STEP = { h: 0.15, run: 0.2, count: 3 };
+const FRIEZE = { y: 4.8, h: 0.42 };
+// Pylons at the joints: slim enough to stand clear of the frames
+const PYLON = { base: 0.9, baseH: 0.6, bottom: 0.62, top: 0.5, h: WALL_H + 1.3 };
+
+/** A tapered square pylon on a granite plinth, a bronze brazier burning on top */
+function Pylon({ stone, bronze, flame }: { stone: StoneMats; bronze: THREE.Material; flame: THREE.Material }) {
+  const shaft = PYLON.h - PYLON.baseH;
   return (
     <group>
-      <mesh position-y={0.15}>
-        <boxGeometry args={[0.85, 0.3, 0.85]} />
-        <meshStandardMaterial color={COLORS.trim} roughness={0.7} />
+      <mesh material={stone.granite} position-y={PYLON.baseH / 2}>
+        <boxGeometry args={[PYLON.base, PYLON.baseH, PYLON.base]} />
       </mesh>
-      <mesh position-y={height / 2}>
-        <cylinderGeometry args={[0.3, 0.34, height, 16]} />
-        <meshStandardMaterial color={COLORS.trim} roughness={0.6} />
+      {/* Four-sided cylinder, turned 45°: a square that narrows as it rises */}
+      <mesh material={stone.ashlar} position-y={PYLON.baseH + shaft / 2} rotation-y={Math.PI / 4}>
+        <cylinderGeometry args={[PYLON.top / Math.SQRT2, PYLON.bottom / Math.SQRT2, shaft, 4]} />
       </mesh>
-      <mesh position-y={height - 0.1}>
-        <boxGeometry args={[0.8, 0.25, 0.8]} />
-        <meshStandardMaterial color={COLORS.trim} roughness={0.7} />
+      <mesh material={stone.granite} position-y={PYLON.h + 0.1}>
+        <boxGeometry args={[PYLON.top + 0.2, 0.2, PYLON.top + 0.2]} />
       </mesh>
+      <group position-y={PYLON.h + 0.2}>
+        <mesh material={bronze} position-y={0.08}>
+          <cylinderGeometry args={[0.07, 0.12, 0.16, 12]} />
+        </mesh>
+        <mesh material={bronze} position-y={0.26}>
+          <cylinderGeometry args={[0.32, 0.14, 0.2, 16]} />
+        </mesh>
+        <mesh material={flame} position-y={0.48} scale={[0.2, 0.36, 0.2]}>
+          <sphereGeometry args={[1, 12, 10]} />
+        </mesh>
+      </group>
     </group>
   );
 }
+
+// Memorial stone. The walls are merged into one mesh, so the courses follow
+// the world's axes (the two side walls, at 30°, stretch theirs a little)
+function useStone() {
+  const stone = useMemo(() => {
+    const world = new THREE.Matrix4();
+    return {
+      // Big dressed blocks, finely jointed
+      ashlar: stoneMaterial("#aaa396", world, { tile: 5.6, roughness: 0.8, bump: 0.6 }),
+      // Plain smooth limestone for the cornice, polished dark granite for the rest
+      limestone: new THREE.MeshStandardMaterial({ color: "#b9b2a5", roughness: 0.7 }),
+      granite: new THREE.MeshStandardMaterial({ color: "#3a3936", roughness: 0.32, metalness: 0.1 }),
+    };
+  }, []);
+  useEffect(() => () => Object.values(stone).forEach((m) => m.dispose()), [stone]);
+  return stone;
+}
+type StoneMats = ReturnType<typeof useStone>;
 
 // Each wall: its angle on the arc, its apps and where they hang
 const WALLS = WALL_COUNTS.map((count, i) => {
@@ -337,6 +377,7 @@ export default function Museum() {
   const activeStop = useOwlWorld((s) => s.activeStop);
   const interactive = activeStop === STOP_INDEX.museum;
   const light = useRef<THREE.PointLight>(null);
+  const { accentLights } = useQuality();
   const hovered = useOwlWorld((s) => s.hoveredApp);
   const lightLevel = useRef(0);
 
@@ -350,54 +391,98 @@ export default function Museum() {
     if (light.current) light.current.intensity = lightLevel.current * 3.5;
   });
 
+  const stone = useStone();
+  const { bronze, flame } = useMemo(
+    () => ({
+      bronze: new THREE.MeshStandardMaterial({ color: "#8a6a3e", metalness: 0.8, roughness: 0.38 }),
+      flame: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffb04a").multiplyScalar(3), toneMapped: false }),
+    }),
+    [],
+  );
+  useEffect(
+    () => () => {
+      bronze.dispose();
+      flame.dispose();
+    },
+    [bronze, flame],
+  );
   const M = MUSEUM_CENTER;
   return (
     <group position={[M.x, 0, M.z]}>
-      {/* Marble floor with an inlaid ring */}
-      <mesh rotation-x={-Math.PI / 2} position-y={0.02}>
-        <circleGeometry args={[MUSEUM_RADIUS + 3.5, 64]} />
-        <meshStandardMaterial color={COLORS.floor} roughness={0.85} />
-      </mesh>
-      <mesh rotation-x={-Math.PI / 2} position-y={0.03}>
-        <ringGeometry args={[2.2, 2.45, 64]} />
-        <meshStandardMaterial color={COLORS.inlay} roughness={0.4} />
-      </mesh>
-      <mesh rotation-x={-Math.PI / 2} position-y={0.03}>
-        <ringGeometry args={[MUSEUM_RADIUS - 1.2, MUSEUM_RADIUS - 1.0, 64, 1, Math.PI / 2 - MUSEUM_WALL_STEP * (MUSEUM_WALLS / 2), MUSEUM_WALL_STEP * MUSEUM_WALLS]} />
-        <meshStandardMaterial color={COLORS.gold} metalness={0.6} roughness={0.4} />
-      </mesh>
+      {/* The building itself never moves: drawn as a few merged meshes */}
+      <MergeStatic>
+        {/* Marble floor with an inlaid ring */}
+        <mesh rotation-x={-Math.PI / 2} position-y={0.02}>
+          <circleGeometry args={[MUSEUM_RADIUS + 3.5, 64]} />
+          <meshStandardMaterial color={COLORS.floor} roughness={0.85} />
+        </mesh>
+        <mesh rotation-x={-Math.PI / 2} position-y={0.05}>
+          <ringGeometry args={[2.2, 2.45, 64]} />
+          <meshStandardMaterial color={COLORS.inlay} roughness={0.4} />
+        </mesh>
+        <mesh rotation-x={-Math.PI / 2} position-y={0.05}>
+          <ringGeometry args={[MUSEUM_RADIUS - 1.2, MUSEUM_RADIUS - 1.0, 64, 1, Math.PI / 2 - MUSEUM_WALL_STEP * (MUSEUM_WALLS / 2), MUSEUM_WALL_STEP * MUSEUM_WALLS]} />
+          <meshStandardMaterial color={COLORS.gold} metalness={0.6} roughness={0.4} />
+        </mesh>
 
-      {/* The owl's pedestal; its top is the museum perch */}
-      <group>
-        <mesh position-y={0.12}>
-          <cylinderGeometry args={[0.62, 0.7, 0.24, 24]} />
-          <meshStandardMaterial color={COLORS.trim} roughness={0.6} />
-        </mesh>
-        <mesh position-y={M.y / 2}>
-          <cylinderGeometry args={[0.32, 0.4, M.y, 24]} />
-          <meshStandardMaterial color={COLORS.trim} roughness={0.55} />
-        </mesh>
-        <mesh position-y={M.y - 0.06}>
-          <cylinderGeometry args={[0.5, 0.42, 0.12, 24]} />
-          <meshStandardMaterial color={COLORS.gold} metalness={0.7} roughness={0.35} />
-        </mesh>
-      </group>
+        {/* The owl's pedestal; its top is the museum perch */}
+        <group>
+          <mesh position-y={0.12}>
+            <cylinderGeometry args={[0.62, 0.7, 0.24, 24]} />
+            <meshStandardMaterial color={COLORS.trim} roughness={0.6} />
+          </mesh>
+          <mesh position-y={M.y / 2}>
+            <cylinderGeometry args={[0.32, 0.4, M.y, 24]} />
+            <meshStandardMaterial color={COLORS.trim} roughness={0.55} />
+          </mesh>
+          <mesh position-y={M.y - 0.06}>
+            <cylinderGeometry args={[0.5, 0.42, 0.12, 24]} />
+            <meshStandardMaterial color={COLORS.gold} metalness={0.7} roughness={0.35} />
+          </mesh>
+        </group>
 
+        {WALLS.map(({ theta }, i) => (
+          <group key={i} position={[Math.sin(theta) * MUSEUM_RADIUS, 0, -Math.cos(theta) * MUSEUM_RADIUS]} rotation-y={-theta}>
+            <mesh material={stone.ashlar} position={[0, WALL_H / 2, MEMORIAL_Z]}>
+              <boxGeometry args={[WALL_W, WALL_H, MEMORIAL_D]} />
+            </mesh>
+            {/* Granite steps along the foot, each set back from the one below */}
+            {Array.from({ length: STEP.count }, (_, k) => {
+              const front = WALL_T / 2 + STEP.run * (STEP.count - k);
+              return (
+                <mesh key={k} material={stone.granite} position={[0, STEP.h * (k + 0.5), (front + MEMORIAL_Z - MEMORIAL_D / 2) / 2]}>
+                  <boxGeometry args={[WALL_W + 0.02, STEP.h, front - (MEMORIAL_Z - MEMORIAL_D / 2)]} />
+                </mesh>
+              );
+            })}
+            {/* Polished granite frieze, then the cornice: its top is the companions' perch */}
+            <mesh material={stone.granite} position={[0, FRIEZE.y + FRIEZE.h / 2, MEMORIAL_Z + 0.02]}>
+              <boxGeometry args={[WALL_W + 0.01, FRIEZE.h, MEMORIAL_D + 0.04]} />
+            </mesh>
+            <mesh material={stone.limestone} position={[0, (FRIEZE.y + FRIEZE.h + WALL_H) / 2, MEMORIAL_Z + 0.04]}>
+              <boxGeometry args={[WALL_W + 0.04, WALL_H - FRIEZE.y - FRIEZE.h, MEMORIAL_D + 0.08]} />
+            </mesh>
+            <mesh material={stone.limestone} position={[0, WALL_H + 0.1, MEMORIAL_Z]}>
+              <boxGeometry args={[WALL_W + 0.14, 0.22, MEMORIAL_D + 0.3]} />
+            </mesh>
+          </group>
+        ))}
+
+        {/* Pylons at the wall joints */}
+        {Array.from({ length: MUSEUM_WALLS + 1 }, (_, i) => {
+          const a = (i - MUSEUM_WALLS / 2) * MUSEUM_WALL_STEP;
+          const r = MUSEUM_RADIUS / Math.cos(MUSEUM_WALL_STEP / 2);
+          return (
+            <group key={i} position={[Math.sin(a) * r, 0, -Math.cos(a) * r]} rotation-y={-a}>
+              <Pylon stone={stone} bronze={bronze} flame={flame} />
+            </group>
+          );
+        })}
+      </MergeStatic>
+
+      {/* What hangs on the walls: lit, lifted and clicked */}
       {WALLS.map(({ theta, apps, slots, title }, i) => (
         <group key={i} position={[Math.sin(theta) * MUSEUM_RADIUS, 0, -Math.cos(theta) * MUSEUM_RADIUS]} rotation-y={-theta}>
-          <mesh position-y={WALL_H / 2}>
-            <boxGeometry args={[WALL_W, WALL_H, WALL_T]} />
-            <meshStandardMaterial color={COLORS.wall} roughness={0.85} />
-          </mesh>
-          {/* Cornice and skirting */}
-          <mesh position-y={WALL_H + 0.1}>
-            <boxGeometry args={[WALL_W + 0.1, 0.22, WALL_T + 0.2]} />
-            <meshStandardMaterial color={COLORS.trim} roughness={0.7} />
-          </mesh>
-          <mesh position-y={0.15}>
-            <boxGeometry args={[WALL_W + 0.02, 0.3, WALL_T + 0.08]} />
-            <meshStandardMaterial color={COLORS.trim} roughness={0.7} />
-          </mesh>
           {apps.map((app, j) => (
             <Artwork key={app.id} app={app} position={[slots[j]![0], slots[j]![1], 0]} interactive={interactive} light={light} />
           ))}
@@ -405,18 +490,8 @@ export default function Museum() {
         </group>
       ))}
 
-      {/* Columns at the wall joints */}
-      {Array.from({ length: MUSEUM_WALLS + 1 }, (_, i) => {
-        const a = (i - MUSEUM_WALLS / 2) * MUSEUM_WALL_STEP;
-        const r = MUSEUM_RADIUS / Math.cos(MUSEUM_WALL_STEP / 2) - 0.05;
-        return (
-          <group key={i} position={[Math.sin(a) * r, 0, -Math.cos(a) * r]}>
-            <Column height={WALL_H + 0.5} />
-          </group>
-        );
-      })}
-
-      <pointLight ref={light} intensity={0} distance={4.5} decay={1.6} />
+      {/* The picture light (high quality only: the frames glow on hover anyway) */}
+      {accentLights && <pointLight ref={light} intensity={0} distance={4.5} decay={1.6} />}
     </group>
   );
 }

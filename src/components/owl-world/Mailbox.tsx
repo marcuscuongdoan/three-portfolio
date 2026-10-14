@@ -5,15 +5,17 @@ import * as THREE from "three";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { LAST_STOP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
+import { useQuality } from "@/components/owl-world/quality";
 import { usePointerCursor } from "@/components/owl-world/Corridor";
 import { makeSign } from "@/components/owl-world/cardTexture";
 import { CV_FILENAME, CV_URL } from "@/config/site";
+import { STONE, stoneMaterial } from "@/components/owl-world/stone";
 
 /**
- * A garden mailbox by the path at home, with a quest-marker arrow bobbing over
- * it and a ring pulsing at its foot. Hover it and the flag goes up, the door
- * drops open and a letter peeks out (the arrow gives way to a tooltip); click
- * it to download the CV.
+ * A wrought-iron mailbox on a stone pillar by the path at home, with a
+ * quest-marker arrow bobbing over it and a ring pulsing at its foot. Hover it
+ * and the flag goes up, the door drops open and a letter peeks out (the arrow
+ * gives way to a tooltip); click it to download the CV.
  */
 
 // The tooltip is ordinary DOM in the page overlay (MailboxTooltip below);
@@ -43,6 +45,7 @@ export function downloadCv() {
 }
 
 export default function Mailbox() {
+  const { accentLights } = useQuality();
   const atHome = useOwlWorld((s) => s.activeStop === STOP_INDEX.home || s.activeStop === LAST_STOP);
   const [hovered, setHovered] = useState(false);
   const hot = hovered && atHome;
@@ -61,6 +64,9 @@ export default function Mailbox() {
   const ringMat = useRef<THREE.MeshBasicMaterial>(null);
   const anchor = useRef<THREE.Object3D>(null);
 
+  // Lightly weathered: in its own frame the pillar's middle is y = 0, so full moss would climb half way up
+  const stone = useMemo(() => stoneMaterial(STONE.light, undefined, { weather: 0.4 }), []);
+  useEffect(() => () => stone.dispose(), [stone]);
   const plate = useMemo(() => makeSign("Marcus", "Mail · CV", { bg: "#efe5d3", fg: "#2c2420", accent: "#a8834a" }), []);
   useEffect(() => () => plate.dispose(), [plate]);
 
@@ -108,18 +114,13 @@ export default function Mailbox() {
 
   return (
     <group position={POSITION} rotation-y={YAW}>
-      {/* Post on a little stone footing */}
-      <mesh position-y={0.06}>
-        <cylinderGeometry args={[0.13, 0.16, 0.12, 8]} />
-        <meshStandardMaterial color="#6f6a63" roughness={1} />
+      {/* A plain stone pillar like the castle's, with a cap slab */}
+      <mesh material={stone} position-y={POST_H / 2}>
+        <boxGeometry args={[0.3, POST_H, 0.3]} />
       </mesh>
-      <mesh position-y={POST_H / 2}>
-        <boxGeometry args={[0.085, POST_H, 0.085]} />
-        <meshStandardMaterial color="#5a3f2e" roughness={0.9} />
-      </mesh>
-      <mesh position={[0, POST_H - 0.04, 0]}>
-        <boxGeometry args={[0.2, 0.05, 0.32]} />
-        <meshStandardMaterial color="#5a3f2e" roughness={0.9} />
+      <mesh position={[0, POST_H - 0.03, 0]}>
+        <boxGeometry args={[0.36, 0.06, 0.54]} />
+        <meshStandardMaterial color={STONE.dark} roughness={0.95} />
       </mesh>
 
       {/* Quest marker: a glowing arrow over the box, a ring at its foot */}
@@ -151,16 +152,16 @@ export default function Mailbox() {
         {/* Body: a box with a rounded top, open at the front */}
         <mesh position-y={BODY_R * 0.5}>
           <boxGeometry args={[BODY_W, BODY_R, BODY_L]} />
-          <meshStandardMaterial color="#2f5d8a" metalness={0.45} roughness={0.42} />
+          <meshStandardMaterial color="#33312e" metalness={0.7} roughness={0.45} />
         </mesh>
         <mesh position-y={BODY_R} rotation-x={-Math.PI / 2}>
           <cylinderGeometry args={[BODY_R, BODY_R, BODY_L, 20, 1, false, -Math.PI / 2, Math.PI]} />
-          <meshStandardMaterial color="#2f5d8a" metalness={0.45} roughness={0.42} side={THREE.DoubleSide} />
+          <meshStandardMaterial color="#33312e" metalness={0.7} roughness={0.45} side={THREE.DoubleSide} />
         </mesh>
         {/* Back cap */}
         <mesh position={[0, BODY_R * 0.75, -BODY_L / 2 + 0.005]}>
           <boxGeometry args={[BODY_W - 0.01, BODY_R * 1.5, 0.01]} />
-          <meshStandardMaterial color="#244a70" metalness={0.45} roughness={0.5} />
+          <meshStandardMaterial color="#26241f" metalness={0.7} roughness={0.5} />
         </mesh>
         {/* The letter inside, sliding out when the door opens */}
         <mesh ref={letter} position={[0, BODY_R * 0.8, BODY_L / 2 - 0.14]} rotation-x={-0.1}>
@@ -171,7 +172,7 @@ export default function Mailbox() {
         <group ref={door} position={[0, 0, BODY_L / 2]}>
           <mesh position={[0, BODY_R * 0.8, 0.008]}>
             <boxGeometry args={[BODY_W + 0.012, BODY_R * 1.6 + 0.01, 0.016]} />
-            <meshStandardMaterial color="#244a70" metalness={0.5} roughness={0.4} />
+            <meshStandardMaterial color="#2b2925" metalness={0.7} roughness={0.42} />
           </mesh>
           <mesh position={[0, BODY_R * 1.25, 0.022]}>
             <boxGeometry args={[0.06, 0.02, 0.02]} />
@@ -199,7 +200,7 @@ export default function Mailbox() {
           <boxGeometry args={[BODY_W * 2.2, BODY_R * 3.4, BODY_L * 1.4]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
         </mesh>
-        <pointLight ref={glow} position={[0, 0.25, BODY_L / 2 + 0.25]} color="#ffcf8a" intensity={0.4} distance={2.2} decay={1.6} />
+        {accentLights && <pointLight ref={glow} position={[0, 0.25, BODY_L / 2 + 0.25]} color="#ffcf8a" intensity={0.4} distance={2.2} decay={1.6} />}
 
         <object3D ref={anchor} position={[0, BODY_R * 2 + 0.12, 0]} />
       </group>

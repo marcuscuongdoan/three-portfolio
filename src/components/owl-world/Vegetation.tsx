@@ -7,6 +7,7 @@ import {
   broadleafTree,
   bushGeometry,
   coniferTree,
+  crownMaterial,
   foliageMaterial,
   grassTuftGeometry,
   makeBarkTexture,
@@ -16,7 +17,8 @@ import {
   mulberry32,
   TreeGeometry,
 } from "@/components/owl-world/foliage";
-import { withWind } from "@/components/owl-world/wind";
+import { windShadow, withWind, WindOptions } from "@/components/owl-world/wind";
+import { worldToHouse } from "@/components/owl-world/homePlan";
 
 /**
  * Trees, shrubs and grass. The perch tree is grown around the owl (nothing in
@@ -26,7 +28,14 @@ import { withWind } from "@/components/owl-world/wind";
 
 // The perch tree's root; the static branch the owl sits on comes off this trunk
 export const PERCH_TRUNK = new THREE.Vector3(-1.5, 0, -1.0);
-const HOUSE = { x: 2.8, z: -11.5, hx: 4.4, hz: 4 };
+
+/** Sway a material in the wind, keeping shadow-pass stand-ins that sway with it */
+function windy<T extends THREE.Material>(material: T, options: WindOptions, map?: THREE.Texture): T {
+  material.userData.windShadow = windShadow(options, map);
+  return withWind(material, options);
+}
+/** Props for a mesh of a `windy` material, so its shadow moves as it does */
+const shadowOf = (material: THREE.Material): ReturnType<typeof windShadow> | undefined => material.userData.windShadow;
 
 function useFoliageKit() {
   const kit = useMemo(() => {
@@ -35,16 +44,21 @@ function useFoliageKit() {
     const grassTex = makeGrassTexture(3);
     const barkTex = makeBarkTexture(4);
     const bark = (sway: number) =>
-      withWind(new THREE.MeshStandardMaterial({ map: barkTex, color: "#8a7462", roughness: 1 }), { sway, rustle: 0, height: 9 });
+      windy(new THREE.MeshStandardMaterial({ map: barkTex, color: "#8a7462", roughness: 1 }), { sway, rustle: 0, height: 9 });
     return {
       textures: [leafTex, needleTex, grassTex, barkTex],
       perchBark: new THREE.MeshStandardMaterial({ map: barkTex, color: "#8a7462", roughness: 1 }),
-      perchLeaves: withWind(foliageMaterial(leafTex, { color: "#c9d6b0" }), { sway: 0.07, rustle: 0.025, height: 7 }),
+      perchLeaves: windy(foliageMaterial(leafTex, { color: "#c9d6b0", vertexColors: true }), { sway: 0.07, rustle: 0.025, height: 7 }, leafTex),
       woodsBark: bark(0.2),
-      woodsLeaves: withWind(foliageMaterial(leafTex), { sway: 0.2, rustle: 0.05, height: 9 }),
-      woodsNeedles: withWind(foliageMaterial(needleTex, { color: "#7f9a86" }), { sway: 0.18, rustle: 0.03, height: 10 }),
-      bush: withWind(foliageMaterial(leafTex, { color: "#b6c79a" }), { sway: 0.04, rustle: 0.02, height: 1.5 }),
-      grass: withWind(foliageMaterial(grassTex, { roughness: 1 }), { sway: 0.06, rustle: 0.015, height: 0.45 }),
+      // Solid crowns under the leaf fringe
+      perchCrown: windy(crownMaterial("#5f7d45"), { sway: 0.07, rustle: 0.01, height: 7 }),
+      woodsCrown: windy(crownMaterial("#55753c"), { sway: 0.2, rustle: 0.02, height: 9 }),
+      pineCrown: windy(crownMaterial("#3d5a44"), { sway: 0.18, rustle: 0.015, height: 10 }),
+      bushCrown: windy(crownMaterial("#5a7a42"), { sway: 0.04, rustle: 0.01, height: 1.5 }),
+      woodsLeaves: windy(foliageMaterial(leafTex, { vertexColors: true }), { sway: 0.2, rustle: 0.05, height: 9 }, leafTex),
+      woodsNeedles: windy(foliageMaterial(needleTex, { color: "#7f9a86", vertexColors: true }), { sway: 0.18, rustle: 0.03, height: 10 }, needleTex),
+      bush: windy(foliageMaterial(leafTex, { color: "#b6c79a", vertexColors: true }), { sway: 0.04, rustle: 0.02, height: 1.5 }, leafTex),
+      grass: withWind(foliageMaterial(grassTex, { roughness: 1 }), { sway: 0.1, rustle: 0.02, height: 0.45 }),
     };
   }, []);
   useEffect(
@@ -64,12 +78,13 @@ function PerchTree({ kit }: { kit: Kit }) {
     return broadleafTree({
       seed: 41,
       height: 7.4,
-      trunkRadius: 0.3,
+      trunkRadius: 0.34,
       forkAt: 0.56,
+      levels: 4,
       lean: new THREE.Vector3(-0.55, 0, -0.35),
-      cardSize: 1.15,
-      cardsPerTip: 10,
-      fillCards: 60,
+      cardSize: 0.95,
+      fringe: 7,
+      innerBlobs: 3,
       exclude: (p) =>
         p.distanceTo(owl) < 1.6 ||
         p.y < 3.8 ||
@@ -83,7 +98,10 @@ function PerchTree({ kit }: { kit: Kit }) {
   return (
     <group position={PERCH_TRUNK}>
       <mesh geometry={tree.bark} material={kit.perchBark} />
-      <mesh geometry={tree.leaves} material={kit.perchLeaves} />
+      {/* Out of the lamps' shadows like the woods: the branch lantern hangs right
+          under the crown, so all it would shadow is the crown itself, swaying */}
+      <mesh geometry={tree.crown} material={kit.perchCrown} userData={{ lampShadowFree: true }} {...shadowOf(kit.perchCrown)} />
+      <mesh geometry={tree.leaves} material={kit.perchLeaves} userData={{ lampShadowFree: true }} {...shadowOf(kit.perchLeaves)} />
     </group>
   );
 }
@@ -91,6 +109,7 @@ function PerchTree({ kit }: { kit: Kit }) {
 const disposeTree = (t: TreeGeometry) => {
   t.bark.dispose();
   t.leaves.dispose();
+  t.crown.dispose();
 };
 
 interface Placed {
@@ -101,9 +120,10 @@ interface Placed {
   tint: THREE.Color;
 }
 
-function InstancedTrees({ tree, placed, bark, leaves }: { tree: TreeGeometry; placed: Placed[]; bark: THREE.Material; leaves: THREE.Material }) {
+function InstancedTrees({ tree, placed, bark, leaves, crown }: { tree: TreeGeometry; placed: Placed[]; bark: THREE.Material; leaves: THREE.Material; crown: THREE.Material }) {
   const barkRef = useRef<THREE.InstancedMesh>(null);
   const leafRef = useRef<THREE.InstancedMesh>(null);
+  const crownRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
     const o = new THREE.Object3D();
     placed.forEach((p, i) => {
@@ -114,7 +134,12 @@ function InstancedTrees({ tree, placed, bark, leaves }: { tree: TreeGeometry; pl
       barkRef.current!.setMatrixAt(i, o.matrix);
       leafRef.current!.setMatrixAt(i, o.matrix);
       leafRef.current!.setColorAt(i, p.tint);
+      crownRef.current!.setMatrixAt(i, o.matrix);
+      crownRef.current!.setColorAt(i, p.tint);
     });
+    crownRef.current!.instanceMatrix.needsUpdate = true;
+    if (crownRef.current!.instanceColor) crownRef.current!.instanceColor.needsUpdate = true;
+    crownRef.current!.computeBoundingSphere();
     barkRef.current!.instanceMatrix.needsUpdate = true;
     leafRef.current!.instanceMatrix.needsUpdate = true;
     if (leafRef.current!.instanceColor) leafRef.current!.instanceColor.needsUpdate = true;
@@ -124,8 +149,10 @@ function InstancedTrees({ tree, placed, bark, leaves }: { tree: TreeGeometry; pl
   }, [placed]);
   return (
     <>
-      <instancedMesh ref={barkRef} args={[tree.bark, bark, placed.length]} />
-      <instancedMesh ref={leafRef} args={[tree.leaves, leaves, placed.length]} />
+      {/* The woods span the valley: kept out of the lanterns' shadows (see shadows.tsx) */}
+      <instancedMesh ref={barkRef} args={[tree.bark, bark, placed.length]} userData={{ lampShadowFree: true }} {...shadowOf(bark)} />
+      <instancedMesh ref={crownRef} args={[tree.crown, crown, placed.length]} userData={{ lampShadowFree: true }} {...shadowOf(crown)} />
+      <instancedMesh ref={leafRef} args={[tree.leaves, leaves, placed.length]} userData={{ lampShadowFree: true }} {...shadowOf(leaves)} />
     </>
   );
 }
@@ -143,7 +170,7 @@ const CONIFER_VARIANTS = [
 function Woods({ kit }: { kit: Kit }) {
   const { broadleaves, conifers, placements } = useMemo(() => {
     const rand = mulberry32(7);
-    const broad = BROADLEAF_VARIANTS.map((v) => broadleafTree({ ...v, cardSize: 1.5, cardsPerTip: 9, fillCards: 70 }));
+    const broad = BROADLEAF_VARIANTS.map((v) => broadleafTree({ ...v, cardSize: 1.5, fringe: 6, innerBlobs: 2, crownDetail: 1 }));
     const coni = CONIFER_VARIANTS.map((v) => coniferTree(v));
     const lists: Placed[][] = [...broad, ...coni].map(() => []);
     let placedCount = 0;
@@ -153,6 +180,9 @@ function Woods({ kit }: { kit: Kit }) {
       // Keep clear of the corridor, the home clearing and the museum
       if (Math.abs(x - CORRIDOR_X) < 9 && z < 0 && z > -95) continue;
       if (Math.hypot(x - 2, z + 6) < 14) continue;
+      // ...and the castle and its garden
+      const h = worldToHouse(x, z);
+      if (Math.abs(h.x) < 12 && h.z > -11 && h.z < 14) continue;
       if (Math.hypot(x - MUSEUM_CENTER.x, z - MUSEUM_CENTER.z) < 18) continue;
       const pine = rand() < 0.4;
       const variant = pine ? broad.length + Math.floor(rand() * coni.length) : Math.floor(rand() * broad.length);
@@ -171,10 +201,10 @@ function Woods({ kit }: { kit: Kit }) {
   return (
     <group>
       {broadleaves.map((tree, i) => (
-        <InstancedTrees key={`b${i}`} tree={tree} placed={placements[i]!} bark={kit.woodsBark} leaves={kit.woodsLeaves} />
+        <InstancedTrees key={`b${i}`} tree={tree} placed={placements[i]!} bark={kit.woodsBark} leaves={kit.woodsLeaves} crown={kit.woodsCrown} />
       ))}
       {conifers.map((tree, i) => (
-        <InstancedTrees key={`c${i}`} tree={tree} placed={placements[broadleaves.length + i]!} bark={kit.woodsBark} leaves={kit.woodsNeedles} />
+        <InstancedTrees key={`c${i}`} tree={tree} placed={placements[broadleaves.length + i]!} bark={kit.woodsBark} leaves={kit.woodsNeedles} crown={kit.pineCrown} />
       ))}
     </group>
   );
@@ -210,11 +240,13 @@ function Scatter({
       const z = area[2] + rand() * (area[3] - area[2]);
       if (!accept(x, z)) continue;
       o.position.set(x, 0, z);
-      o.rotation.set(0, rand() * Math.PI * 2, 0);
-      o.scale.setScalar(scale[0] + rand() * (scale[1] - scale[0]));
+      // Each tuft leans its own way and is its own height, so the meadow isn't a grid of clones
+      o.rotation.set((rand() - 0.5) * 0.16, rand() * Math.PI * 2, (rand() - 0.5) * 0.16);
+      const s = scale[0] + rand() * (scale[1] - scale[0]);
+      o.scale.set(s * (0.8 + rand() * 0.4), s * (0.7 + rand() * 0.6), s * (0.8 + rand() * 0.4));
       o.updateMatrix();
       ref.current!.setMatrixAt(i, o.matrix);
-      ref.current!.setColorAt(i, col.setHSL(0.22 + rand() * 0.07, 0.3, 0.7 + rand() * 0.3));
+      ref.current!.setColorAt(i, col.setHSL(0.22 + rand() * 0.07, 0.26, 0.38 + rand() * 0.18));
       i++;
     }
     ref.current!.count = i;
@@ -226,31 +258,37 @@ function Scatter({
   return <instancedMesh ref={ref} args={[geometry, material, count]} userData={{ receiveOnly: true }} />;
 }
 
-const inHouse = (x: number, z: number) => Math.abs(x - HOUSE.x) < HOUSE.hx && Math.abs(z - HOUSE.z) < HOUSE.hz;
-// The garden path from the door
-const onPath = (x: number, z: number) => z > -8.6 && z < 0.5 && Math.abs(x - (HOUSE.x + 0.22 * (z - HOUSE.z) * -1) + 0.0) < 1.1;
+// The castle's footprint, and the path from its gate through the garden (in its frame)
+const inHouse = (x: number, z: number) => {
+  const p = worldToHouse(x, z);
+  return Math.abs(p.x) < 7 && p.z > -6.4 && p.z < 5.2;
+};
+const onPath = (x: number, z: number) => {
+  const p = worldToHouse(x, z);
+  return Math.abs(p.x) < 1.1 && p.z > 4.5 && p.z < 11.2;
+};
 const nearTrunk = (x: number, z: number) => Math.hypot(x - PERCH_TRUNK.x, z - PERCH_TRUNK.z) < 0.7;
 const inMuseum = (x: number, z: number) => Math.hypot(x - MUSEUM_CENTER.x, z - MUSEUM_CENTER.z) < MUSEUM_RADIUS + 3.8;
 
 const GRASS_AREAS: { area: [number, number, number, number]; count: number; accept: (x: number, z: number) => boolean }[] = [
   // Home clearing
-  { area: [-12, 14, -22, 10], count: 900, accept: (x, z) => !inHouse(x, z) && !onPath(x, z) && !nearTrunk(x, z) },
+  { area: [-12, 14, -22, 10], count: 650, accept: (x, z) => !inHouse(x, z) && !onPath(x, z) && !nearTrunk(x, z) },
   // Along the flight corridor
-  { area: [CORRIDOR_X - 14, CORRIDOR_X + 14, -78, -10], count: 700, accept: () => true },
+  { area: [CORRIDOR_X - 14, CORRIDOR_X + 14, -78, -10], count: 420, accept: () => true },
   // Round the museum
-  { area: [MUSEUM_CENTER.x - 22, MUSEUM_CENTER.x + 22, MUSEUM_CENTER.z - 22, MUSEUM_CENTER.z + 18], count: 420, accept: (x, z) => !inMuseum(x, z) },
+  { area: [MUSEUM_CENTER.x - 22, MUSEUM_CENTER.x + 22, MUSEUM_CENTER.z - 22, MUSEUM_CENTER.z + 18], count: 260, accept: (x, z) => !inMuseum(x, z) },
 ];
 
 const BUSH_SPOTS: [number, number, number][] = [
   // [x, z, scale] — along the house front, by the fence, at the tree's foot
   [-1.2, -7.6, 1.1],
   [0.2, -7.9, 0.8],
-  [5.8, -9.4, 1.2],
-  [6.9, -11.6, 1.0],
+  [3.6, -7.4, 1.2],
+  [9.2, -8.2, 1.0],
   [-2.3, -3.7, 0.9],
   [-0.8, -3.2, 1.2],
   [5.6, -2.7, 1.0],
-  [7.4, -3.4, 1.3],
+  [7.6, -2.0, 1.3],
   [-2.4, -0.2, 0.8],
   [-0.6, -1.9, 0.6],
   [9.5, -6, 1.4],
@@ -258,9 +296,16 @@ const BUSH_SPOTS: [number, number, number][] = [
 ];
 
 function Bushes({ kit }: { kit: Kit }) {
-  const geometry = useMemo(() => bushGeometry(13, 0.75), []);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  const ref = useRef<THREE.InstancedMesh>(null);
+  const bush = useMemo(() => bushGeometry(13, 0.75), []);
+  useEffect(
+    () => () => {
+      bush.crown.dispose();
+      bush.leaves.dispose();
+    },
+    [bush],
+  );
+  const crownRef = useRef<THREE.InstancedMesh>(null);
+  const leafRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
     const o = new THREE.Object3D();
     BUSH_SPOTS.forEach(([x, z, s], i) => {
@@ -268,12 +313,20 @@ function Bushes({ kit }: { kit: Kit }) {
       o.rotation.set(0, i * 2.3, 0);
       o.scale.set(s, s * 0.85, s);
       o.updateMatrix();
-      ref.current!.setMatrixAt(i, o.matrix);
+      crownRef.current!.setMatrixAt(i, o.matrix);
+      leafRef.current!.setMatrixAt(i, o.matrix);
     });
-    ref.current!.instanceMatrix.needsUpdate = true;
-    ref.current!.computeBoundingSphere();
+    for (const m of [crownRef.current!, leafRef.current!]) {
+      m.instanceMatrix.needsUpdate = true;
+      m.computeBoundingSphere();
+    }
   }, []);
-  return <instancedMesh ref={ref} args={[geometry, kit.bush, BUSH_SPOTS.length]} />;
+  return (
+    <>
+      <instancedMesh ref={crownRef} args={[bush.crown, kit.bushCrown, BUSH_SPOTS.length]} {...shadowOf(kit.bushCrown)} />
+      <instancedMesh ref={leafRef} args={[bush.leaves, kit.bush, BUSH_SPOTS.length]} {...shadowOf(kit.bush)} />
+    </>
+  );
 }
 
 export default function Vegetation() {

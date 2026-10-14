@@ -39,6 +39,9 @@ interface OwlWorldState {
   loaded: boolean;
   // Bumped to make the owl do its wing-stretch emote
   cheer: number;
+  // The high quality setting; null until the saved choice is read
+  highQuality: boolean | null;
+  setHighQuality: (high: boolean) => void;
   setStops: (active: number | null, nearest: number) => void;
   setHoveredApp: (id: string | null) => void;
   setPendingApp: (app: ShowcaseApp | null) => void;
@@ -59,6 +62,8 @@ export const useOwlWorld = create<OwlWorldState>()((set) => ({
   pendingApp: null,
   loaded: false,
   cheer: 0,
+  highQuality: null,
+  setHighQuality: (highQuality) => set({ highQuality }),
   setStops: (activeStop, nearestStop) => set({ activeStop, nearestStop }),
   setHoveredApp: (hoveredApp) => set({ hoveredApp }),
   setPendingApp: (pendingApp) => set({ pendingApp }),

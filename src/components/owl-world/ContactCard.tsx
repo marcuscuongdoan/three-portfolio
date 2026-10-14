@@ -9,14 +9,14 @@ export default function ContactCard() {
   const { formData, handleChange, handleSubmit, status, isSending } = useContactForm();
 
   return (
-    <section aria-labelledby="owl-contact-title" className="owl-glass pointer-events-auto w-full max-w-md rounded-3xl p-5 sm:p-7">
-      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-lantern">04 · Contact</p>
-      <h2 id="owl-contact-title" className="mt-1 text-2xl font-bold text-moon-50 sm:text-3xl">
+    <section aria-labelledby="owl-contact-title" className="owl-glass pointer-events-auto w-full max-w-md rounded-3xl p-5 short:p-4 sm:p-7">
+      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-lantern short:hidden">04 · Contact</p>
+      <h2 id="owl-contact-title" className="mt-1 text-2xl font-bold text-moon-50 short:mt-0 short:text-xl sm:text-3xl">
         Send the owl a letter
       </h2>
-      <p className="mt-2 hidden text-sm text-moon-200 sm:block">A project, a question or just hello — it&apos;ll be delivered.</p>
+      <p className="mt-2 hidden text-sm text-moon-200 sm:block short:hidden">A project, a question or just hello — it&apos;ll be delivered.</p>
 
-      <form onSubmit={handleSubmit} className="mt-4 space-y-3 sm:mt-5">
+      <form onSubmit={handleSubmit} className="mt-4 space-y-3 short:mt-3 short:space-y-2 sm:mt-5 short:landscape:grid short:landscape:grid-cols-2 short:landscape:gap-2 short:landscape:space-y-0">
         <div>
           <label htmlFor="owl-name" className="mb-1 block text-xs font-medium text-moon-100">
             Name <span className="text-red-300">*</span>
@@ -29,18 +29,18 @@ export default function ContactCard() {
           </label>
           <input id="owl-email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="you@example.com" className={field} />
         </div>
-        <div>
+        <div className="short:landscape:col-span-2">
           <label htmlFor="owl-content" className="mb-1 block text-xs font-medium text-moon-100">
             Message <span className="text-red-300">*</span>
           </label>
-          <textarea id="owl-content" name="content" required rows={3} value={formData.content} onChange={handleChange} placeholder="Your message…" className={`${field} resize-none`} />
+          <textarea id="owl-content" name="content" required rows={3} value={formData.content} onChange={handleChange} placeholder="Your message…" className={`${field} resize-none short:h-16`} />
         </div>
 
         {status.type !== "idle" && (
           <p
             role={status.type === "error" ? "alert" : "status"}
             aria-live="polite"
-            className={`rounded-xl px-4 py-2.5 text-sm ${
+            className={`rounded-xl px-4 py-2.5 text-sm short:landscape:col-span-2 ${
               status.type === "success"
                 ? "bg-green-400/15 text-green-200"
                 : status.type === "error"
@@ -55,7 +55,7 @@ export default function ContactCard() {
         <button
           type="submit"
           disabled={isSending}
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-lantern font-semibold text-ink shadow-lg transition hover:bg-lantern-soft active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex min-h-12 w-full items-center short:landscape:col-span-2 justify-center gap-2 rounded-2xl bg-lantern font-semibold text-ink shadow-lg transition hover:bg-lantern-soft active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSending ? "Sending…" : "Send message"}
         </button>

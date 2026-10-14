@@ -11,8 +11,8 @@ import { nextIdleVent, ventSteam } from "@/components/owl-world/steam";
 import { OWL_PAINTS, paintOwl } from "@/components/owl-world/owlPaint";
 import { usePointerCursor } from "@/components/owl-world/Corridor";
 import { headAngles, OWL_Z, OwlPoser, pointerPoint } from "@/components/owl-world/owlPoser";
+import { useQuality } from "@/components/owl-world/quality";
 
-export const OWL_URL = "/models/owl_web.glb";
 
 export interface OwlHandle {
   // Called once per frame by the rig, after it has sampled the flight path
@@ -43,7 +43,7 @@ const _seen = new THREE.Vector3();
 
 /** The guide owl: flies the path the scroll drives */
 const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
-  const { scene, animations } = useGLTF(OWL_URL);
+  const { scene, animations } = useGLTF(useQuality().owlUrl);
   const group = useRef<THREE.Group>(null);
   const camera = useThree((s) => s.camera);
 
@@ -54,13 +54,13 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
       mesh.frustumCulled = false; // skinned bounds don't follow the flap
       (mesh.material as THREE.MeshStandardMaterial).envMapIntensity = 1.7;
     });
-    // The guide is charcoal; the companions get their own paint
-    paintOwl(scene, OWL_PAINTS.charcoal);
+    // The guide is charcoal with rainbow wings and tail; the companions get
+    // their own paint
+    paintOwl(scene, { ...OWL_PAINTS.charcoal, rainbow: true });
     return new OwlPoser(scene, animations);
   }, [scene, animations]);
 
   useEffect(() => () => poser.dispose(), [poser]);
-  useEffect(() => useOwlWorld.getState().setLoaded(), []);
 
   const state = useRef({
     look: { yaw: 0, pitch: 0 },
@@ -168,4 +168,3 @@ const Owl = forwardRef<OwlHandle>(function Owl(_, ref) {
 
 export default Owl;
 
-useGLTF.preload(OWL_URL);

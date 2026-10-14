@@ -3,7 +3,7 @@
 import { Fragment, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
-import { useProgress } from "@react-three/drei";
+import { useGLTF, useProgress } from "@react-three/drei";
 import { LAB_APPS, WEB_APPS } from "@/data/apps";
 import { HOLD_STOPS, LAST_STOP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
@@ -14,6 +14,8 @@ import LeaveModal from "@/components/owl-world/LeaveModal";
 import CvModal from "@/components/owl-world/CvModal";
 import { MailboxTooltip } from "@/components/owl-world/Mailbox";
 import MuseumCarousel, { usePortrait } from "@/components/owl-world/MuseumCarousel";
+import SceneControls from "@/components/owl-world/SceneControls";
+import { OWL_FULL_URL, OWL_LITE_URL, savedHighQuality } from "@/components/owl-world/quality";
 import { useWorld3DStore } from "@/store/useWorld3DStore";
 import "@/components/owl-world/owl-world.css";
 
@@ -49,7 +51,7 @@ function TopNav() {
   const current = sectionOf(navTarget ?? nearest);
   return (
     <header className="fixed inset-x-0 top-0 z-40 pointer-events-none">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 pt-4 sm:px-8 sm:pt-6">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 pt-4 sm:gap-3 sm:px-8 sm:pt-6">
         <button
           type="button"
           onClick={() => goToSection("home")}
@@ -66,7 +68,7 @@ function TopNav() {
                 type="button"
                 onClick={() => goToSection(item.section)}
                 aria-current={active ? "true" : undefined}
-                className={`relative min-h-11 rounded-full px-4 text-sm font-medium transition-colors sm:px-6 ${active ? "text-ink" : "text-moon-200 hover:text-moon-50"}`}
+                className={`relative min-h-11 rounded-full px-3 text-sm font-medium transition-colors min-[360px]:px-4 sm:px-6 ${active ? "text-ink" : "text-moon-200 hover:text-moon-50"}`}
               >
                 {active && (
                   <motion.span
@@ -80,7 +82,9 @@ function TopNav() {
             );
           })}
         </nav>
-        <span className="hidden w-[84px] sm:block" aria-hidden />
+        <div className="flex shrink-0 justify-end sm:min-w-[84px]">
+          <SceneControls />
+        </div>
       </div>
     </header>
   );
@@ -204,7 +208,7 @@ function Caption({ stop }: { stop: number }) {
   const c = CAPTIONS[stop]!;
   const center = c.align === "center";
   return (
-    <motion.div key={`cap-${stop}`} className="pointer-events-none fixed inset-x-0 z-20" style={center ? { top: "5.5rem" } : { bottom: "2rem" }} {...fade}>
+    <motion.div key={`cap-${stop}`} className={`pointer-events-none fixed inset-x-0 z-20 ${center ? "" : "bottom-24 md:bottom-8"}`} style={center ? { top: "5.5rem" } : undefined} {...fade}>
       <div className={`mx-auto max-w-7xl px-4 sm:px-8 ${center ? "text-center" : ""}`}>
         <div className={`owl-glass inline-block max-w-lg rounded-3xl px-6 py-5 text-left ${center ? "text-center" : ""}`}>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-lantern">{c.kicker}</p>
@@ -228,7 +232,7 @@ function ContactPanel({ visible }: { visible: boolean }) {
       inert={!visible}
       aria-hidden={!visible}
     >
-      <div className="mx-auto flex min-h-full max-w-7xl items-end justify-end px-4 pb-4 pt-[34svh] sm:px-8 md:items-center md:pb-0 md:pt-24">
+      <div className="mx-auto flex min-h-full max-w-7xl items-end justify-end px-4 pb-4 pt-[34svh] short:pt-24 sm:px-8 md:items-center md:pb-0 md:pt-24 short:md:pt-20">
         <ContactCard />
       </div>
     </motion.div>
@@ -274,7 +278,7 @@ function NextStep() {
   const label = active !== null ? NEXT_LABEL[active] : undefined;
   const isContact = active === STOP_INDEX.contact;
   // The bottom of a phone screen is taken by the contact form / museum cards
-  const placement = isContact ? "hidden md:flex" : active === STOP_INDEX.museum && portrait ? "hidden" : "flex";
+  const placement = isContact ? "hidden md:flex short:landscape:hidden" : active === STOP_INDEX.museum && portrait ? "hidden" : "flex";
   return (
     <AnimatePresence>
       {label && (
@@ -381,10 +385,19 @@ export default function OwlWorld() {
     return () => useWorld3DStore.getState().setPlayCharacterAnimation(previous);
   }, []);
 
+  // The scene waits for the saved quality setting, and starts over when it changes
+  const highQuality = useOwlWorld((s) => s.highQuality);
+  useEffect(() => {
+    const high = savedHighQuality();
+    // Start on the owl while the scene's code loads; only the one this setting uses
+    useGLTF.preload(high ? OWL_FULL_URL : OWL_LITE_URL);
+    useOwlWorld.getState().setHighQuality(high);
+  }, []);
+
   return (
     <main className="relative bg-night">
       <div className="fixed inset-0 z-0">
-        <OwlScene />
+        {highQuality !== null && <OwlScene key={highQuality ? "high" : "auto"} high={highQuality} />}
       </div>
 
       {/* One full-screen snap section per stop; they only carry the scroll.

@@ -59,3 +59,17 @@ export function withWind<T extends THREE.Material>(material: T, { sway = 0.15, r
   material.customProgramCacheKey = () => `${previousKey()}|wind-${sway}-${rustle}-${height}`;
   return material;
 }
+
+/**
+ * Shadow-pass stand-ins for a wind-swayed mesh (set as its customDepthMaterial
+ * and customDistanceMaterial): without them its shadow stays still while the
+ * mesh sways, and the mismatch crawls over it as flickering self-shadow.
+ * Given the foliage `map`, cards also cut their shadows out by its alpha.
+ */
+export function windShadow(options: WindOptions, map?: THREE.Texture) {
+  const cut = map ? { map, alphaTest: 0.45 } : {};
+  return {
+    customDepthMaterial: withWind(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, ...cut }), options),
+    customDistanceMaterial: withWind(new THREE.MeshDistanceMaterial(cut), options),
+  };
+}

@@ -6,6 +6,9 @@
 @source not "../../public";
 @source not "../../docs";
 
+/* Short screens: a phone with its browser bars showing, or in landscape */
+@custom-variant short (@media (max-height: 700px));
+
 :root {
   --background: #EAE4DC;
   --foreground: #2C2420;

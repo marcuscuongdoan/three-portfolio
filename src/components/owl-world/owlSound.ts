@@ -9,7 +9,7 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let noise: AudioBuffer | null = null;
 
-function audio() {
+export function audio() {
   if (!ctx) {
     ctx = new AudioContext();
     const comp = ctx.createDynamicsCompressor();

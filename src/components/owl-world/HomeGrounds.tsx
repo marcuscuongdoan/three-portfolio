@@ -1,114 +1,181 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import type { ThreeElements } from "@react-three/fiber";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { PERCH_HOME } from "@/components/owl-world/flightPath";
 import Vegetation, { PERCH_TRUNK } from "@/components/owl-world/Vegetation";
+import { makeBarkTexture, makeGroundTexture } from "@/components/owl-world/foliage";
 import Mailbox from "@/components/owl-world/Mailbox";
 import { HomeShadowLight } from "@/components/owl-world/shadows";
+import { STONE, stoneMaterial } from "@/components/owl-world/stone";
+import { CASTLE_SCALE, HOUSE_POSITION, HOUSE_YAW, houseToWorld } from "@/components/owl-world/homePlan";
 
 /**
- * The owl's home: a two-storey cottage at dusk, the tree whose branch it
+ * The owl's home: a little stone castle at dusk, the tree whose branch it
  * sits on, the meadow and the woods the flight passes over. All primitives.
  */
 
 const C = {
-  wall: "#f1e6d4",
-  wallUpper: "#f6eee2",
-  timber: "#5d4030",
-  roof: "#a44f38",
-  roofDark: "#8b3f2c",
-  stone: "#9a8f80",
-  brick: "#9c5a44",
-  shutter: "#7f9a7a",
+  roof: "#b4563a",
+  roofDark: "#8f3f2a",
   door: "#6e4530",
+  doorway: "#2b211a",
   glass: "#ffd9a0",
   glassGlow: "#ffae4a",
-  grass: "#4f6040",
   path: "#7d6f5c",
-  bark: "#6b4b36",
   leaves: ["#6d8b4a", "#7fa055", "#5e7d40", "#8aa85e"],
-  flowers: ["#e06b6b", "#f2c14e", "#e88fb3", "#f5f0e6"],
 };
 
 function useMats() {
   return useMemo(() => {
+    const groundTex = makeGroundTexture();
+    const barkTex = makeBarkTexture(4);
+    groundTex.repeat.set(64, 64);
     const std = (color: string, roughness = 0.85, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
       new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
     return {
-      wall: std(C.wall),
-      wallUpper: std(C.wallUpper),
-      timber: std(C.timber, 0.7),
+      // Courses follow the castle's walls, not the world's axes
+      stone: stoneMaterial(STONE.light, CASTLE_FRAME),
+      stoneDark: stoneMaterial(STONE.dark, CASTLE_FRAME),
+      pennant: std("#9c2b2b", 0.7, { side: THREE.DoubleSide }),
       roof: std(C.roof, 0.75),
       roofDark: std(C.roofDark, 0.8),
-      stone: std(C.stone, 0.95),
-      brick: std(C.brick, 0.9),
-      shutter: std(C.shutter, 0.7),
       door: std(C.door, 0.6),
-      glass: std(C.glass, 0.3, { emissive: new THREE.Color(C.glassGlow), emissiveIntensity: 3.2 }),
+      doorway: std(C.doorway, 1, { side: THREE.DoubleSide }),
+      glass: std(C.glass, 0.3, { emissive: new THREE.Color(C.glassGlow), emissiveIntensity: 3.2, side: THREE.DoubleSide }),
       bulb: std("#fff2d0", 0.3, { emissive: new THREE.Color("#ffc46b"), emissiveIntensity: 4, toneMapped: false }),
-      grass: std(C.grass, 1),
+      // Blotchy greens and earth, about 8 m to a tile across the meadow
+      grass: std("#727272", 1, { map: groundTex }),
       path: std(C.path, 1),
-      bark: std("#5b4433", 1),
+      // The same bark as the perch tree's trunk, for its roots and the branch
+      bark: std("#8a7462", 1, { map: barkTex }),
       leafFall: std("#8aa85e", 0.8, { side: THREE.DoubleSide, emissive: new THREE.Color("#2c3a1c"), emissiveIntensity: 0.6 }),
-      flowers: C.flowers.map((c) => std(c, 0.8)),
       metal: std("#2f2b28", 0.5, { metalness: 0.6 }),
     };
   }, []);
 }
 type Mats = ReturnType<typeof useMats>;
 
-function Window({ m, w, h, position, shutters = false, rotationY = 0 }: { m: Mats; w: number; h: number; position: [number, number, number]; shutters?: boolean; rotationY?: number }) {
+/** A box with softened edges; the radius shrinks to suit thin boards */
+function RBox({ size, radius = 0.1, ...props }: { size: [number, number, number]; radius?: number } & ThreeElements["mesh"]) {
+  const [w, h, d] = size;
+  const geometry = useMemo(() => new RoundedBoxGeometry(w, h, d, 3, Math.min(radius, Math.min(w, h, d) * 0.3)), [w, h, d, radius]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <mesh geometry={geometry} {...props} />;
+}
+
+// ------------------------------------------------------------------ castle
+
+const WALL_H = 2.6;
+const WALL_T = 0.42;
+// Merlons: the teeth along every wall top, all one shared geometry
+const MERLON = { w: 0.32, h: 0.4, d: 0.46, gap: 0.55 };
+const COPING_H = 0.14;
+
+/** A lit window with a round-arched head, facing +Z */
+function ArchWindow({ m, w, h, position, rotationY = 0 }: { m: Mats; w: number; h: number; position: [number, number, number]; rotationY?: number }) {
   return (
     <group position={position} rotation-y={rotationY}>
-      <mesh material={m.timber}>
-        <boxGeometry args={[w + 0.18, h + 0.18, 0.1]} />
+      {/* Stone surround, then the glass a hair in front */}
+      <mesh material={m.stoneDark}>
+        <planeGeometry args={[w + 0.12, h + 0.06]} />
       </mesh>
-      <mesh material={m.glass} position-z={0.052}>
+      <mesh material={m.stoneDark} position-y={h / 2}>
+        <circleGeometry args={[w / 2 + 0.06, 20, 0, Math.PI]} />
+      </mesh>
+      <mesh material={m.glass} position-z={0.005}>
         <planeGeometry args={[w, h]} />
       </mesh>
-      {/* Mullions */}
-      <mesh material={m.timber} position-z={0.07}>
-        <boxGeometry args={[0.06, h, 0.04]} />
+      <mesh material={m.glass} position={[0, h / 2, 0.005]}>
+        <circleGeometry args={[w / 2, 20, 0, Math.PI]} />
       </mesh>
-      <mesh material={m.timber} position-z={0.07}>
-        <boxGeometry args={[w, 0.06, 0.04]} />
-      </mesh>
-      {/* Sill */}
-      <mesh material={m.wall} position={[0, -h / 2 - 0.12, 0.1]}>
-        <boxGeometry args={[w + 0.36, 0.08, 0.22]} />
-      </mesh>
-      {shutters &&
-        [-1, 1].map((s) => (
-          <mesh key={s} material={m.shutter} position={[s * (w / 2 + 0.36), 0, 0.04]}>
-            <boxGeometry args={[0.46, h + 0.1, 0.06]} />
-          </mesh>
-        ))}
     </group>
   );
 }
 
-function FlowerBox({ m, width, position }: { m: Mats; width: number; position: [number, number, number] }) {
-  const blooms = useMemo(
-    () => Array.from({ length: Math.round(width * 6) }, (_, i) => ({ x: -width / 2 + 0.08 + (i / (width * 6)) * (width - 0.1), c: i % 4, s: 0.07 + ((i * 37) % 5) * 0.012 })),
-    [width],
-  );
+/** A row of merlons along X, `length` long, standing on `y` */
+function Crenels({ m, geo, length, y, z = 0 }: { m: Mats; geo: THREE.BufferGeometry; length: number; y: number; z?: number }) {
+  // Too short a run for two gets one, centred
+  const n = length < MERLON.w * 2 ? 1 : Math.max(2, Math.round(length / MERLON.gap) + 1);
+  const x = (i: number) => (n === 1 ? 0 : -length / 2 + MERLON.w / 2 + (i * (length - MERLON.w)) / (n - 1));
   return (
-    <group position={position}>
-      <mesh material={m.timber}>
-        <boxGeometry args={[width, 0.2, 0.26]} />
-      </mesh>
-      {blooms.map((b, i) => (
-        <mesh key={i} material={m.flowers[b.c]} position={[b.x, 0.14 + (i % 2) * 0.05, (i % 3) * 0.06 - 0.06]}>
-          <icosahedronGeometry args={[b.s, 0]} />
-        </mesh>
+    <group position={[0, y + MERLON.h / 2, z]}>
+      {Array.from({ length: n }, (_, i) => (
+        <mesh key={i} geometry={geo} material={m.stone} position-x={x(i)} />
       ))}
     </group>
   );
 }
 
-function Roof({ m, width, depth, rise, overhang, y }: { m: Mats; width: number; depth: number; rise: number; overhang: number; y: number }) {
+/** Coping and merlons round the top of a w × d block whose top is at `y` */
+function BattlementRing({ m, geo, w, d, y }: { m: Mats; geo: THREE.BufferGeometry; w: number; d: number; y: number }) {
+  const inset = MERLON.d / 2;
+  return (
+    <group>
+      <RBox size={[w + 0.12, COPING_H, d + 0.12]} radius={0.04} material={m.stoneDark} position-y={y + COPING_H / 2} />
+      <Crenels m={m} geo={geo} length={w} y={y + COPING_H} z={d / 2 - inset} />
+      <Crenels m={m} geo={geo} length={w} y={y + COPING_H} z={-d / 2 + inset} />
+      <group rotation-y={Math.PI / 2}>
+        <Crenels m={m} geo={geo} length={d - MERLON.d * 2} y={y + COPING_H} z={w / 2 - inset} />
+        <Crenels m={m} geo={geo} length={d - MERLON.d * 2} y={y + COPING_H} z={-w / 2 + inset} />
+      </group>
+    </group>
+  );
+}
+
+/** A curtain wall from `a` to `b` (in the XZ plane), crenellated along its top */
+function CurtainWall({ m, geo, a, b }: { m: Mats; geo: THREE.BufferGeometry; a: [number, number]; b: [number, number] }) {
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return (
+    <group position={[(a[0] + b[0]) / 2, 0, (a[1] + b[1]) / 2]} rotation-y={-Math.atan2(b[1] - a[1], b[0] - a[0])}>
+      {/* Runs on into the towers so no seam shows */}
+      <RBox size={[len + 0.6, WALL_H, WALL_T]} radius={0.06} material={m.stone} position-y={WALL_H / 2} />
+      <RBox size={[len + 0.6, COPING_H, WALL_T + 0.1]} radius={0.04} material={m.stoneDark} position-y={WALL_H + COPING_H / 2} />
+      <Crenels m={m} geo={geo} length={len} y={WALL_H + COPING_H} />
+    </group>
+  );
+}
+
+/** A round corner tower: battered foot, corbelled top, tall terracotta cone */
+function Tower({ m, r, h, roofH, position, windows = [] }: { m: Mats; r: number; h: number; roofH: number; position: [number, number, number]; windows?: [number, number][] }) {
+  return (
+    <group position={position}>
+      <mesh material={m.stoneDark} position-y={0.3}>
+        <cylinderGeometry args={[r * 1.04, r * 1.14, 0.6, 28]} />
+      </mesh>
+      <mesh material={m.stone} position-y={h / 2}>
+        <cylinderGeometry args={[r, r, h, 28]} />
+      </mesh>
+      {/* Corbels flare out to carry the overhanging roof */}
+      <mesh material={m.stoneDark} position-y={h - 0.12}>
+        <cylinderGeometry args={[r * 1.12, r, 0.3, 28]} />
+      </mesh>
+      <mesh material={m.stone} position-y={h + 0.15}>
+        <cylinderGeometry args={[r * 1.12, r * 1.12, 0.3, 28]} />
+      </mesh>
+      <mesh material={m.roof} position-y={h + 0.3 + roofH / 2}>
+        <coneGeometry args={[r * 1.3, roofH, 28]} />
+      </mesh>
+      <mesh material={m.roofDark} position-y={h + 0.3 + 0.06}>
+        <cylinderGeometry args={[r * 1.3, r * 1.3, 0.12, 28]} />
+      </mesh>
+      <mesh material={m.metal} position-y={h + 0.3 + roofH + 0.04}>
+        <sphereGeometry args={[0.07, 10, 8]} />
+      </mesh>
+      {/* Windows: [angle round the tower (0 = +Z), height] */}
+      {windows.map(([angle, y]) => (
+        <ArchWindow key={`${angle}${y}`} m={m} w={0.26} h={0.42} position={[Math.sin(angle) * (r + 0.02), y, Math.cos(angle) * (r + 0.02)]} rotationY={angle} />
+      ))}
+    </group>
+  );
+}
+
+/** A gabled hall, ridge along X */
+function Hall({ m, width, depth, height, rise, position, rotationY = 0 }: { m: Mats; width: number; depth: number; height: number; rise: number; position: [number, number, number]; rotationY?: number }) {
+  const overhang = 0.18;
   const half = depth / 2 + overhang;
   const slope = Math.hypot(half, rise);
   const angle = Math.atan2(rise, half);
@@ -123,168 +190,213 @@ function Roof({ m, width, depth, rise, overhang, y }: { m: Mats; width: number; 
     g.rotateY(Math.PI / 2);
     return g;
   }, [width, depth, rise, half]);
+  useEffect(() => () => gable.dispose(), [gable]);
   return (
-    <group position-y={y}>
-      <mesh geometry={gable} material={m.wallUpper} />
-      {[1, -1].map((s) => (
-        <mesh key={s} material={m.roof} position={[0, rise / 2 + 0.06, (s * half) / 2]} rotation-x={s * angle}>
-          <boxGeometry args={[width + overhang * 2, 0.16, slope + 0.1]} />
+    <group position={position} rotation-y={rotationY}>
+      <RBox size={[width, height, depth]} radius={0.06} material={m.stone} position-y={height / 2} />
+      <group position-y={height}>
+        <mesh geometry={gable} material={m.stone} />
+        {[1, -1].map((s) => (
+          <RBox key={s} size={[width + overhang * 2, 0.12, slope + 0.08]} radius={0.04} material={m.roof} position={[0, rise / 2 + 0.05, (s * half) / 2]} rotation-x={s * angle} />
+        ))}
+        <mesh material={m.roofDark} position-y={rise + 0.08} rotation-z={Math.PI / 2}>
+          <cylinderGeometry args={[0.08, 0.08, width + overhang * 2 + 0.04, 10]} />
         </mesh>
+      </group>
+      {[-width / 4, width / 4].map((x) => (
+        <ArchWindow key={x} m={m} w={0.24} h={0.36} position={[x, height * 0.62, depth / 2 + 0.01]} />
       ))}
-      {/* Ridge */}
-      <mesh material={m.roofDark} position-y={rise + 0.1} rotation-z={Math.PI / 2}>
-        <cylinderGeometry args={[0.12, 0.12, width + overhang * 2 + 0.05, 8]} />
-      </mesh>
     </group>
   );
 }
 
-// Where the cottage stands; its front (local +Z) faces the perch tree
-export const HOUSE_POSITION = new THREE.Vector3(2.8, 0, -11.5);
-export const HOUSE_YAW = -0.22;
+// World → the castle's frame, unscaled so stone courses keep their real size
+const CASTLE_FRAME = new THREE.Matrix4()
+  .compose(HOUSE_POSITION, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), HOUSE_YAW), new THREE.Vector3(1, 1, 1))
+  .invert();
 
-function House({ m }: { m: Mats }) {
-  const W = 7;
-  const D = 6;
-  const H = 4.6;
+// Corner tower centres; the curtain walls run between them
+const CX = 3.4;
+const CZ = 2.9;
+// The gatehouse straddles the front wall
+const GATE = { w: 2.0, h: 3.4, d: 0.9 };
+const GATE_FRONT = CZ + GATE.d / 2;
+// Scaled up these stay under ~10.5 m, and the tallest stand away from the
+// glide home, which passes over the castle's left side at about 10.5 m
+const KEEP = { w: 3.2, h: 4.4, d: 2.2, z: -1.4 };
+const TURRET = { s: 1.1, h: 6.6, x: 1.6, z: -2.3 };
+
+/** A pennant on a short pole, standing on `position`, flying toward +X */
+function Pennant({ m, position }: { m: Mats; position: [number, number, number] }) {
+  const flag = useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(0, 0);
+    s.lineTo(0.75, -0.14);
+    s.lineTo(0, -0.32);
+    s.closePath();
+    return new THREE.ShapeGeometry(s);
+  }, []);
+  useEffect(() => () => flag.dispose(), [flag]);
   return (
-    <group position={HOUSE_POSITION} rotation-y={HOUSE_YAW}>
-      {/* Plinth and body */}
-      <mesh material={m.stone} position-y={0.2}>
-        <boxGeometry args={[W + 0.4, 0.4, D + 0.4]} />
+    <group position={position}>
+      <mesh material={m.metal} position-y={0.5}>
+        <cylinderGeometry args={[0.02, 0.02, 1.0, 6]} />
       </mesh>
-      <mesh material={m.wall} position-y={0.4 + 1.2}>
-        <boxGeometry args={[W, 2.4, D]} />
+      <mesh geometry={flag} material={m.pennant} position={[0.02, 0.98, 0]} rotation-y={-0.3} />
+    </group>
+  );
+}
+
+// The garden in front of the gate, at 1:1 (not scaled with the castle)
+const GARDEN_Z = 9.5;
+const GARDEN_X = 7.5;
+const GARDEN_WALL_H = 1.1;
+const GARDEN_GAP = 1.0;
+const PIER = { s: 0.6, h: 1.6 };
+const LANTERN_Y = PIER.h + 0.36;
+
+/** A low crenellated garden wall from `a` to `b` */
+function GardenWall({ m, geo, a, b }: { m: Mats; geo: THREE.BufferGeometry; a: [number, number]; b: [number, number] }) {
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return (
+    <group position={[(a[0] + b[0]) / 2, 0, (a[1] + b[1]) / 2]} rotation-y={-Math.atan2(b[1] - a[1], b[0] - a[0])}>
+      <RBox size={[len, GARDEN_WALL_H, WALL_T]} radius={0.05} material={m.stone} position-y={GARDEN_WALL_H / 2} />
+      <RBox size={[len + 0.06, COPING_H, WALL_T + 0.1]} radius={0.04} material={m.stoneDark} position-y={GARDEN_WALL_H + COPING_H / 2} />
+      <Crenels m={m} geo={geo} length={len} y={GARDEN_WALL_H + COPING_H} />
+    </group>
+  );
+}
+
+/** Path, gate piers (the left one carrying the lantern) and the garden wall */
+function Garden({ m, merlon }: { m: Mats; merlon: THREE.BufferGeometry }) {
+  const pathFrom = CASTLE_SCALE * GATE_FRONT;
+  const pathTo = GARDEN_Z + 1.5;
+  return (
+    <group>
+      <mesh material={m.path} rotation-x={-Math.PI / 2} position={[0, 0.03, (pathFrom + pathTo) / 2]}>
+        <planeGeometry args={[1.5, pathTo - pathFrom]} />
       </mesh>
-      <mesh material={m.wallUpper} position-y={2.8 + 1.1}>
-        <boxGeometry args={[W, 2.2, D]} />
-      </mesh>
-      {/* Floor band and corner posts (timber frame) */}
-      <mesh material={m.timber} position-y={2.8}>
-        <boxGeometry args={[W + 0.08, 0.16, D + 0.08]} />
-      </mesh>
-      {[-1, 1].flatMap((sx) =>
-        [-1, 1].map((sz) => (
-          <mesh key={`${sx}${sz}`} material={m.timber} position={[(sx * W) / 2, 0.4 + H / 2, (sz * D) / 2]}>
-            <boxGeometry args={[0.18, H, 0.18]} />
-          </mesh>
-        )),
-      )}
-      {/* Upper-floor cross braces on the front */}
-      {[-2.4, 0, 2.4].map((x) => (
-        <mesh key={x} material={m.timber} position={[x + 1.2, 3.9, D / 2 + 0.03]} rotation-z={x === 0 ? 0.62 : -0.62}>
-          <boxGeometry args={[0.1, 2.3, 0.06]} />
-        </mesh>
+      {/* Front wall either side of the gate, and short returns toward the castle */}
+      <GardenWall m={m} geo={merlon} a={[-GARDEN_X, GARDEN_Z]} b={[-GARDEN_GAP - PIER.s / 2, GARDEN_Z]} />
+      <GardenWall m={m} geo={merlon} a={[GARDEN_GAP + PIER.s / 2, GARDEN_Z]} b={[GARDEN_X, GARDEN_Z]} />
+      <GardenWall m={m} geo={merlon} a={[-GARDEN_X, GARDEN_Z]} b={[-GARDEN_X, GARDEN_Z - 5]} />
+      <GardenWall m={m} geo={merlon} a={[GARDEN_X, GARDEN_Z]} b={[GARDEN_X, GARDEN_Z - 5]} />
+      {[-1, 1].map((side) => (
+        <group key={side} position={[side * GARDEN_GAP, 0, GARDEN_Z]}>
+          <RBox size={[PIER.s, PIER.h, PIER.s]} radius={0.05} material={m.stone} position-y={PIER.h / 2} />
+          <RBox size={[PIER.s + 0.14, 0.14, PIER.s + 0.14]} radius={0.04} material={m.stoneDark} position-y={PIER.h + 0.07} />
+          {side > 0 && (
+            <mesh material={m.stoneDark} position-y={PIER.h + 0.3}>
+              <sphereGeometry args={[0.18, 14, 10]} />
+            </mesh>
+          )}
+        </group>
       ))}
-      <Roof m={m} width={W} depth={D} rise={2.7} overhang={0.5} y={0.4 + H} />
-
-      {/* Chimney */}
-      <group position={[2.1, 0, -1.1]}>
-        <mesh material={m.brick} position-y={6.9}>
-          <boxGeometry args={[0.75, 2.4, 0.75]} />
+      {/* Lantern on the left pier */}
+      <group position={[-GARDEN_GAP, 0, GARDEN_Z]} userData={{ noShadow: true }}>
+        <mesh material={m.metal} position-y={PIER.h + 0.16}>
+          <cylinderGeometry args={[0.1, 0.12, 0.06, 8]} />
         </mesh>
-        <mesh material={m.stone} position-y={8.15}>
-          <boxGeometry args={[0.92, 0.16, 0.92]} />
-        </mesh>
-      </group>
-
-      {/* Front: door with a little porch roof, windows with shutters */}
-      <group position-z={D / 2 + 0.01}>
-        <mesh material={m.timber} position={[0, 1.55, 0.02]}>
-          <boxGeometry args={[1.3, 2.4, 0.08]} />
-        </mesh>
-        <mesh material={m.door} position={[0, 1.5, 0.07]}>
-          <boxGeometry args={[1.05, 2.2, 0.06]} />
-        </mesh>
-        <mesh material={m.glass} position={[0, 2.25, 0.105]}>
-          <circleGeometry args={[0.22, 16]} />
-        </mesh>
-        <mesh material={m.metal} position={[0.38, 1.45, 0.12]}>
-          <sphereGeometry args={[0.05, 8, 8]} />
-        </mesh>
-        <mesh material={m.roof} position={[0, 3.0, 0.45]} rotation-x={0.35}>
-          <boxGeometry args={[2.0, 0.1, 1.05]} />
-        </mesh>
-        {[-0.85, 0.85].map((x) => (
-          <mesh key={x} material={m.timber} position={[x, 1.65, 0.85]}>
-            <boxGeometry args={[0.1, 2.5, 0.1]} />
-          </mesh>
-        ))}
-        {/* Steps */}
-        {[0, 1].map((i) => (
-          <mesh key={i} material={m.stone} position={[0, 0.1 + i * 0.15, 0.95 - i * 0.3]}>
-            <boxGeometry args={[1.8 - i * 0.3, 0.2 + i * 0.1, 0.6]} />
-          </mesh>
-        ))}
-        {[-2.3, 2.3].map((x) => (
-          <group key={x}>
-            <Window m={m} w={1.1} h={1.3} position={[x, 1.75, 0]} shutters />
-            <FlowerBox m={m} width={1.3} position={[x, 0.92, 0.2]} />
-          </group>
-        ))}
-        {[-2.4, 0, 2.4].map((x) => (
-          <Window key={x} m={m} w={0.95} h={1.05} position={[x, 3.95, 0]} />
-        ))}
-      </group>
-
-      {/* Side facing the camera: two windows and a round gable window */}
-      <group position-x={W / 2 + 0.01} rotation-y={Math.PI / 2}>
-        <Window m={m} w={1} h={1.2} position={[-1.3, 1.75, 0]} shutters />
-        <Window m={m} w={1} h={1.2} position={[1.3, 1.75, 0]} shutters />
-        <Window m={m} w={0.9} h={1} position={[0, 3.95, 0]} />
-        <mesh material={m.timber} position={[0, 5.9, 0]}>
-          <torusGeometry args={[0.42, 0.07, 8, 24]} />
-        </mesh>
-        <mesh material={m.glass} position={[0, 5.9, 0.01]}>
-          <circleGeometry args={[0.4, 24]} />
-        </mesh>
-      </group>
-      <group position-x={-W / 2 - 0.01} rotation-y={-Math.PI / 2}>
-        <Window m={m} w={1} h={1.2} position={[0, 1.75, 0]} shutters />
-        <Window m={m} w={0.9} h={1} position={[0, 3.95, 0]} />
-      </group>
-
-      {/* Lantern by the path */}
-      <group position={[-2.6, 0, D / 2 + 2.2]} userData={{ noShadow: true }}>
-        <mesh material={m.metal} position-y={1.1}>
-          <cylinderGeometry args={[0.05, 0.07, 2.2, 8]} />
-        </mesh>
-        <mesh material={m.bulb} position-y={2.3}>
+        <mesh material={m.bulb} position-y={LANTERN_Y}>
           <sphereGeometry args={[0.16, 12, 12]} />
         </mesh>
-        <mesh material={m.metal} position-y={2.5}>
+        <mesh material={m.metal} position-y={LANTERN_Y + 0.2}>
           <coneGeometry args={[0.24, 0.2, 6]} />
         </mesh>
-        <HomeShadowLight position-y={2.3} color="#ffbe6b" intensity={9} distance={9} decay={2} far={9} />
+        <HomeShadowLight position-y={LANTERN_Y} color="#ffbe6b" intensity={9} distance={9} decay={2} far={9} />
       </group>
-      {/* Garden path */}
-      <mesh material={m.path} rotation-x={-Math.PI / 2} position={[0, 0.015, D / 2 + 4.5]}>
-        <planeGeometry args={[1.5, 8]} />
-      </mesh>
-      {/* Picket fence along the front garden */}
-      {/* Window light spilling onto the garden */}
-      <pointLight position={[0, 2.2, D / 2 + 1.6]} color="#ffab55" intensity={14} distance={11} decay={2} />
-      <Fence m={m} from={[-4.8, D / 2 + 5]} to={[-0.9, D / 2 + 5]} />
-      <Fence m={m} from={[0.9, D / 2 + 5]} to={[4.8, D / 2 + 5]} />
     </group>
   );
 }
 
-function Fence({ m, from, to }: { m: Mats; from: [number, number]; to: [number, number] }) {
-  const len = Math.hypot(to[0] - from[0], to[1] - from[1]);
-  const n = Math.round(len / 0.32);
+/** Where the companions sit at home: a gatehouse merlon, and the pier lantern's cap */
+export const HOME_PERCHES: [THREE.Vector3, THREE.Vector3] = [
+  houseToWorld(0.42 * CASTLE_SCALE, (3.4 + COPING_H + MERLON.h) * CASTLE_SCALE, (CZ + GATE.d / 2 - MERLON.d / 2) * CASTLE_SCALE),
+  houseToWorld(-GARDEN_GAP, LANTERN_Y + 0.3, GARDEN_Z),
+];
+
+function Castle({ m }: { m: Mats }) {
+  const merlon = useMemo(() => new RoundedBoxGeometry(MERLON.w, MERLON.h, MERLON.d, 2, 0.04), []);
+  useEffect(() => () => merlon.dispose(), [merlon]);
   return (
-    <group position={[from[0], 0, from[1]]} rotation-y={-Math.atan2(to[1] - from[1], to[0] - from[0])}>
-      {Array.from({ length: n + 1 }, (_, i) => (
-        <mesh key={i} material={m.wall} position={[(i / n) * len, 0.42, 0]}>
-          <boxGeometry args={[0.09, 0.84, 0.05]} />
-        </mesh>
-      ))}
-      {[0.3, 0.62].map((y) => (
-        <mesh key={y} material={m.wall} position={[len / 2, y, -0.04]}>
-          <boxGeometry args={[len, 0.07, 0.04]} />
-        </mesh>
-      ))}
+    <group position={HOUSE_POSITION} rotation-y={HOUSE_YAW}>
+      <group scale={CASTLE_SCALE}>
+        {/* Towers: the front-right one, turned to the camera, is the big one */}
+        <Tower m={m} r={1.0} h={4.2} roofH={2.0} position={[CX, 0, CZ]} windows={[[0.5, 2.0], [1.4, 3.2], [-0.3, 3.3]]} />
+        <Tower m={m} r={0.85} h={3.6} roofH={1.7} position={[-CX, 0, CZ]} windows={[[-0.4, 2.6], [0.6, 1.6]]} />
+        <Tower m={m} r={0.8} h={4.0} roofH={1.8} position={[-CX, 0, -CZ]} windows={[[-1.2, 3.0]]} />
+        <Tower m={m} r={0.85} h={3.4} roofH={1.6} position={[CX, 0, -CZ]} windows={[[1.6, 2.5]]} />
+
+        {/* Curtain walls, tower face to tower face */}
+        <CurtainWall m={m} geo={merlon} a={[-CX + 0.85, CZ]} b={[-GATE.w / 2, CZ]} />
+        <CurtainWall m={m} geo={merlon} a={[GATE.w / 2, CZ]} b={[CX - 1.0, CZ]} />
+        <CurtainWall m={m} geo={merlon} a={[CX, CZ - 1.0]} b={[CX, -CZ + 0.85]} />
+        <CurtainWall m={m} geo={merlon} a={[-CX, -CZ + 0.8]} b={[-CX, CZ - 0.85]} />
+        <CurtainWall m={m} geo={merlon} a={[-CX + 0.8, -CZ]} b={[CX - 0.85, -CZ]} />
+        {/* Arrow-slit windows in the front and camera-side walls */}
+        {[-1.8, 1.8].map((x) => (
+          <ArchWindow key={x} m={m} w={0.18} h={0.5} position={[x, 1.5, CZ + WALL_T / 2 + 0.01]} />
+        ))}
+        <ArchWindow m={m} w={0.18} h={0.5} position={[CX + WALL_T / 2 + 0.01, 1.5, 0]} rotationY={Math.PI / 2} />
+
+        {/* Gatehouse: arched oak door in a dark stone surround */}
+        <group position-z={CZ}>
+          <RBox size={[GATE.w, GATE.h, GATE.d]} radius={0.06} material={m.stone} position-y={GATE.h / 2} />
+          <BattlementRing m={m} geo={merlon} w={GATE.w} d={GATE.d} y={GATE.h} />
+          <group position-z={GATE.d / 2 + 0.01}>
+            <mesh material={m.stoneDark} position-y={0.75}>
+              <planeGeometry args={[1.24, 1.5]} />
+            </mesh>
+            <mesh material={m.stoneDark} position-y={1.5}>
+              <circleGeometry args={[0.62, 24, 0, Math.PI]} />
+            </mesh>
+            <mesh material={m.door} position={[0, 0.7, 0.01]}>
+              <planeGeometry args={[1.0, 1.4]} />
+            </mesh>
+            <mesh material={m.door} position={[0, 1.4, 0.01]}>
+              <circleGeometry args={[0.5, 24, 0, Math.PI]} />
+            </mesh>
+            {/* Planks */}
+            {[-0.25, 0, 0.25].map((x) => (
+              <mesh key={x} material={m.doorway} position={[x, 0.85, 0.015]}>
+                <planeGeometry args={[0.02, 1.7]} />
+              </mesh>
+            ))}
+            <mesh material={m.metal} position={[0.3, 0.75, 0.04]}>
+              <torusGeometry args={[0.06, 0.012, 6, 14]} />
+            </mesh>
+            <ArchWindow m={m} w={0.3} h={0.4} position={[0, 2.55, 0]} />
+          </group>
+        </group>
+
+        {/* Keep, with a tall square turret rising off its back corner */}
+        <group position-z={KEEP.z}>
+          <RBox size={[KEEP.w, KEEP.h, KEEP.d]} radius={0.06} material={m.stone} position-y={KEEP.h / 2} />
+          <BattlementRing m={m} geo={merlon} w={KEEP.w} d={KEEP.d} y={KEEP.h} />
+          {[-1, 0, 1].flatMap((i) =>
+            [2.9, 3.8].map((y) => <ArchWindow key={`${i}${y}`} m={m} w={0.28} h={0.42} position={[i * 0.95, y, KEEP.d / 2 + 0.01]} />),
+          )}
+          <ArchWindow m={m} w={0.28} h={0.42} position={[KEEP.w / 2 + 0.01, 3.4, 0.2]} rotationY={Math.PI / 2} />
+        </group>
+        <group position={[TURRET.x, 0, TURRET.z]}>
+          <RBox size={[TURRET.s, TURRET.h, TURRET.s]} radius={0.06} material={m.stone} position-y={TURRET.h / 2} />
+          <BattlementRing m={m} geo={merlon} w={TURRET.s} d={TURRET.s} y={TURRET.h} />
+          <ArchWindow m={m} w={0.24} h={0.4} position={[0, 5.6, TURRET.s / 2 + 0.01]} />
+          <ArchWindow m={m} w={0.24} h={0.4} position={[TURRET.s / 2 + 0.01, 5.0, 0]} rotationY={Math.PI / 2} />
+        </group>
+
+        {/* Gabled halls round the courtyard, roofs showing over the walls */}
+        <Hall m={m} width={2.2} depth={1.5} height={2.7} rise={0.9} position={[-1.7, 0, 0.9]} />
+        <Hall m={m} width={2.0} depth={1.4} height={2.9} rise={0.9} position={[2.2, 0, 0.5]} rotationY={Math.PI / 2} />
+
+        {/* Pennants on the tallest tower and the turret */}
+        <Pennant m={m} position={[CX, 4.2 + 0.3 + 2.0, CZ]} />
+        <Pennant m={m} position={[TURRET.x, TURRET.h + COPING_H, TURRET.z]} />
+      </group>
+
+      <Garden m={m} merlon={merlon} />
+      {/* Window light spilling onto the garden */}
+      <pointLight position={[0, 2.2, CASTLE_SCALE * GATE_FRONT + 1.6]} color="#ffab55" intensity={14} distance={11} decay={2} />
     </group>
   );
 }
@@ -300,9 +412,15 @@ function Limb({ a, b, r0, r1, material }: { a: THREE.Vector3; b: THREE.Vector3; 
     };
   }, [a, b]);
   return (
-    <mesh material={material} position={pos} quaternion={quat}>
-      <cylinderGeometry args={[r1, r0, len, 7]} />
-    </mesh>
+    <>
+      <mesh material={material} position={pos} quaternion={quat}>
+        <cylinderGeometry args={[r1, r0, len, 12]} />
+      </mesh>
+      {/* Rounded end, so joints and tips aren't cut flat */}
+      <mesh material={material} position={b}>
+        <sphereGeometry args={[r1, 12, 6]} />
+      </mesh>
+    </>
   );
 }
 
@@ -458,7 +576,7 @@ export default function HomeGrounds() {
       <mesh material={m.grass} rotation-x={-Math.PI / 2} position={[-4, 0, -50]} userData={{ receiveOnly: true }}>
         <circleGeometry args={[260, 48]} />
       </mesh>
-      <House m={m} />
+      <Castle m={m} />
       <PerchTree m={m} />
       <BranchLantern m={m} />
       <Vegetation />

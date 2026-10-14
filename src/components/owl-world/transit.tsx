@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { HOLD_STOPS, LAST_STOP, STOPS, stopPosition } from "@/components/owl-world/flightPath";
-import { flight } from "@/components/owl-world/owlStore";
+import { HOLD_STOPS, LAST_STOP, STOP_INDEX, STOPS, stopPosition } from "@/components/owl-world/flightPath";
+import { flight, useOwlWorld } from "@/components/owl-world/owlStore";
 import { sectionHeight, stopTop } from "@/components/owl-world/useFlightScroll";
 
 /**
@@ -53,30 +53,41 @@ function holdState() {
 
 const BEACON_COLOR = new THREE.Color("#ffc95c").multiplyScalar(1.8);
 
+// A soft column of light: brightest down its core, fading out toward its
+// silhouette (so it has no hard edges), up its height and into the ground
+const beamVertex = /* glsl */ `
+  varying float vFacing;
+  varying float vUp;
+  void main() {
+    vUp = uv.y;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vec3 n = normalize(normalMatrix * normal);
+    vFacing = abs(dot(n, normalize(-mv.xyz)));
+    gl_Position = projectionMatrix * mv;
+  }`;
+const beamFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  varying float vFacing;
+  varying float vUp;
+  void main() {
+    // Clamped: interpolation can step a hair past 0..1, and pow() of a
+    // negative is NaN, which bloom smears into flickering black blocks
+    float up = clamp(vUp, 0.0, 1.0);
+    float core = pow(clamp(vFacing, 0.0, 1.0), 2.5);
+    float height = smoothstep(0.0, 0.12, up) * pow(1.0 - up, 1.6);
+    gl_FragColor = vec4(uColor * core * height * uOpacity, 1.0);
+  }`;
+
 export function WaypointBeacon() {
   const group = useRef<THREE.Group>(null);
-  const ring = useRef<THREE.Mesh>(null);
-  const ringMat = useRef<THREE.MeshBasicMaterial>(null);
-  const beamMat = useRef<THREE.MeshBasicMaterial>(null);
   const shown = useRef(0);
   const at = useMemo(() => new THREE.Vector3(), []);
 
-  // A soft vertical beam: bright at the bottom, gone at the top
-  const beamTexture = useMemo(() => {
-    const c = document.createElement("canvas");
-    c.width = 4;
-    c.height = 128;
-    const g = c.getContext("2d")!;
-    const grad = g.createLinearGradient(0, 128, 0, 0);
-    grad.addColorStop(0, "rgba(255,255,255,0.9)");
-    grad.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 4, 128);
-    return new THREE.CanvasTexture(c);
-  }, []);
-  useEffect(() => () => beamTexture.dispose(), [beamTexture]);
+  const beamMat = useRef<THREE.ShaderMaterial>(null);
+  const uniforms = useMemo(() => ({ uColor: { value: BEACON_COLOR }, uOpacity: { value: 0 } }), []);
 
-  useFrame(({ clock }, dt) => {
+  useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
     const { target, along, moving } = transitState();
@@ -88,33 +99,24 @@ export function WaypointBeacon() {
     if (!g.visible) return;
     stopPosition(target, at);
     g.position.copy(at);
-    const t = clock.elapsedTime;
-    if (ring.current) {
-      ring.current.rotation.z = t * 0.8;
-      ring.current.scale.setScalar(1 + Math.sin(t * 3) * 0.06);
-    }
-    if (ringMat.current) ringMat.current.opacity = shown.current * 0.9;
-    if (beamMat.current) beamMat.current.opacity = shown.current * 0.35;
+    // Both faces add up, so each carries half
+    if (beamMat.current) beamMat.current.uniforms.uOpacity!.value = shown.current * 0.2;
   });
 
-  // Perches sit on things; a beacon for them starts lower
   return (
     <group ref={group} userData={{ noShadow: true }} visible={false}>
-      <mesh ref={ring} rotation-x={-Math.PI / 2} position-y={0.05}>
-        <torusGeometry args={[0.85, 0.035, 8, 48]} />
-        <meshBasicMaterial ref={ringMat} color={BEACON_COLOR} toneMapped={false} transparent depthWrite={false} />
-      </mesh>
-      <mesh position-y={2.4}>
-        <cylinderGeometry args={[0.55, 0.85, 5, 24, 1, true]} />
-        <meshBasicMaterial
+      <mesh position-y={2.6}>
+        <cylinderGeometry args={[0.75, 1.0, 5.4, 32, 1, true]} />
+        <shaderMaterial
           ref={beamMat}
-          color={BEACON_COLOR}
-          map={beamTexture}
-          toneMapped={false}
+          uniforms={uniforms}
+          vertexShader={beamVertex}
+          fragmentShader={beamFragment}
           transparent
           depthWrite={false}
           side={THREE.DoubleSide}
           blending={THREE.AdditiveBlending}
+          toneMapped={false}
         />
       </mesh>
     </group>
@@ -128,6 +130,8 @@ export function TransitPill() {
   const label = useRef<HTMLSpanElement>(null);
   const kicker = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLSpanElement>(null);
+  // A phone on its side has no room for it beside the contact form
+  const atContact = useOwlWorld((s) => s.activeStop === STOP_INDEX.contact);
 
   useEffect(() => {
     let raf = 0;
@@ -171,7 +175,7 @@ export function TransitPill() {
       ref={box}
       aria-hidden
       // Phones keep it up under the nav: the bottom has the form or the cards
-      className="owl-glass pointer-events-none fixed bottom-6 left-1/2 z-20 w-60 rounded-2xl px-4 py-2.5 max-md:bottom-auto max-md:top-20"
+      className={`owl-glass pointer-events-none fixed bottom-6 left-1/2 z-20 w-60 rounded-2xl px-4 py-2.5 max-md:bottom-auto max-md:top-20 ${atContact ? "short:landscape:hidden" : ""}`}
       style={{ opacity: 0, transform: "translate(-50%, 12px)" }}
     >
       <div className="flex items-baseline justify-between gap-3">
