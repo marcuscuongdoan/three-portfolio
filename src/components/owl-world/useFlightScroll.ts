@@ -26,6 +26,10 @@ const GRACE_MS = 400;
 const IDLE_MS = 140;
 // A wheel event this long after the last one starts a new gesture
 const WHEEL_GAP_MS = 220;
+// A wheel delta this much bigger than the one before (and at least this big)
+// is a new swipe even without a gap
+const FRESH_RATIO = 1.6;
+const MIN_FRESH_DELTA = 20;
 
 export const sectionHeight = () => document.getElementById("owl-stop-0")?.offsetHeight || window.innerHeight;
 export const stopTop = (stop: number) => document.getElementById(`owl-stop-${stop}`)?.offsetTop ?? stop * sectionHeight();
@@ -121,6 +125,7 @@ export function useFlightScroll() {
     let touching = false;
     let idle = 0;
     let lastWheel = 0;
+    let lastAbs = 0;
 
     const nextFrom = (y: number, dir: number) => {
       const points = snapPoints();
@@ -185,9 +190,14 @@ export function useFlightScroll() {
       const ui = useOwlWorld.getState();
       if (ui.pendingApp || ui.cvPrompt) return;
       const now = performance.now();
+      const abs = Math.abs(e.deltaY);
       const quiet = now - lastWheel > WHEEL_GAP_MS;
+      // Momentum only ever dies away; a sharp rise means a fresh swipe on
+      // top of the last one's tail, which would otherwise never go quiet
+      const fresh = abs > MIN_FRESH_DELTA && abs > lastAbs * FRESH_RATIO;
       lastWheel = now;
-      if (Math.abs(e.deltaY) < 4 || animation !== null || !quiet) return;
+      lastAbs = abs;
+      if (abs < 4 || animation !== null || !(quiet || fresh)) return;
       step(Math.sign(e.deltaY));
     };
 
