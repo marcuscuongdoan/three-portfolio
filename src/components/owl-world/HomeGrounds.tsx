@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ThreeElements } from "@react-three/fiber";
@@ -9,6 +9,7 @@ import { PERCH_HOME } from "@/components/owl-world/flightPath";
 import Vegetation, { PERCH_TRUNK } from "@/components/owl-world/Vegetation";
 import { makeBarkTexture, makeGroundTexture } from "@/components/owl-world/foliage";
 import Mailbox from "@/components/owl-world/Mailbox";
+import WarriorStatue from "@/components/owl-world/Statue";
 import { HomeShadowLight } from "@/components/owl-world/shadows";
 import { STONE, stoneMaterial } from "@/components/owl-world/stone";
 import { CASTLE_SCALE, HOUSE_POSITION, HOUSE_YAW, houseToWorld } from "@/components/owl-world/homePlan";
@@ -254,6 +255,10 @@ const GARDEN_WALL_H = 1.1;
 const GARDEN_GAP = 1.0;
 const PIER = { s: 0.6, h: 1.6 };
 const LANTERN_Y = PIER.h + 0.36;
+// The statue in the garden, in front of the big tower: where the home view
+// has room for it (between the mailbox and the tour panel), clear of the
+// bushes, facing the perch tree. The gate side is off screen from the perch
+const STATUE = { x: -3.9, z: 7.2, yaw: 0.07 };
 
 /** A low crenellated garden wall from `a` to `b` */
 function GardenWall({ m, geo, a, b }: { m: Mats; geo: THREE.BufferGeometry; a: [number, number]; b: [number, number] }) {
@@ -292,6 +297,10 @@ function Garden({ m, merlon }: { m: Mats; merlon: THREE.BufferGeometry }) {
           )}
         </group>
       ))}
+      {/* The Warrior of Dawn guards the garden */}
+      <Suspense fallback={null}>
+        <WarriorStatue seed={2} position={[STATUE.x, 0, STATUE.z]} rotation-y={STATUE.yaw} />
+      </Suspense>
       {/* Lantern on the left pier */}
       <group position={[-GARDEN_GAP, 0, GARDEN_Z]} userData={{ noShadow: true }}>
         <mesh material={m.metal} position-y={PIER.h + 0.16}>

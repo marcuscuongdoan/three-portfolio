@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
 import { LAB_APPS, ShowcaseApp } from "@/data/apps";
@@ -11,6 +11,8 @@ import { useQuality } from "@/components/owl-world/quality";
 import MergeStatic from "@/components/owl-world/MergeStatic";
 import { roundedRectGeometry, usePointerCursor } from "@/components/owl-world/Corridor";
 import { stoneMaterial } from "@/components/owl-world/stone";
+import WarriorStatue from "@/components/owl-world/Statue";
+import { StopShadowSpot } from "@/components/owl-world/shadows";
 
 /**
  * An open-air gallery of the 3D lab: three walls on an arc in front of the
@@ -373,6 +375,20 @@ export function framePose(appId: string, pos: THREE.Vector3, normal: THREE.Vecto
 const _UP = new THREE.Vector3(0, 1, 0);
 const _wallCentre = new THREE.Vector3();
 
+// The warrior stands guard before the pylon between the middle and right
+// walls, out on the floor in front of the steps, clear of every frame and
+// placard, facing the pedestal
+const WARRIOR = { angle: MUSEUM_WALL_STEP / 2, radius: MUSEUM_RADIUS - 1.4 };
+// The gallery light: high, in front of the pedestal and off to the left, so
+// shadows fall back and to the right onto the walls; wide enough for the
+// arc, and dim — it's there for the shadows, not to light the place up
+const MUSEUM_SPOT = {
+  position: [-3.2, 8.5, 3] as [number, number, number],
+  aim: [0.5, 1.2, -MUSEUM_RADIUS] as [number, number, number],
+  angle: 0.75,
+  intensity: 11,
+};
+
 export default function Museum() {
   const activeStop = useOwlWorld((s) => s.activeStop);
   const interactive = activeStop === STOP_INDEX.museum;
@@ -431,8 +447,10 @@ export default function Museum() {
             <cylinderGeometry args={[0.62, 0.7, 0.24, 24]} />
             <meshStandardMaterial color={COLORS.trim} roughness={0.6} />
           </mesh>
-          <mesh position-y={M.y / 2}>
-            <cylinderGeometry args={[0.32, 0.4, M.y, 24]} />
+          {/* Stops just short of the gold top: the two top faces at the same
+              height fought, flickering in wedges */}
+          <mesh position-y={(M.y - 0.01) / 2}>
+            <cylinderGeometry args={[0.32, 0.4, M.y - 0.01, 24]} />
             <meshStandardMaterial color={COLORS.trim} roughness={0.55} />
           </mesh>
           <mesh position-y={M.y - 0.06}>
@@ -489,6 +507,31 @@ export default function Museum() {
           {apps.length === 2 && title[0] && <Placard title={title[0]} kicker={title[1]} position={[0, BOTTOM_ROW, WALL_T / 2 + 0.01]} />}
         </group>
       ))}
+
+      {/* A warm gallery light from above the pedestal: the moon is behind
+          the walls, so without it nothing casts onto their faces. The owl,
+          the pedestal and the warrior throw shadows on the stone */}
+      <StopShadowSpot
+        from={STOP_INDEX.museum - 0.6}
+        to={STOP_INDEX.museum + 0.6}
+        position={MUSEUM_SPOT.position}
+        aim={MUSEUM_SPOT.aim}
+        color="#ffd2a1"
+        intensity={MUSEUM_SPOT.intensity}
+        distance={24}
+        decay={1.4}
+        angle={MUSEUM_SPOT.angle}
+        penumbra={0.7}
+      />
+
+      {/* Loads on its own: the scene doesn't wait on the statue */}
+      <Suspense fallback={null}>
+        {/* On the marble floor, which sits a touch above the ground */}
+        <WarriorStatue
+          position={[Math.sin(WARRIOR.angle) * WARRIOR.radius, 0.02, -Math.cos(WARRIOR.angle) * WARRIOR.radius]}
+          rotation-y={-WARRIOR.angle}
+        />
+      </Suspense>
 
       {/* The picture light (high quality only: the frames glow on hover anyway) */}
       {accentLights && <pointLight ref={light} intensity={0} distance={4.5} decay={1.6} />}

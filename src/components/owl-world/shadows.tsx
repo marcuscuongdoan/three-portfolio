@@ -103,6 +103,32 @@ export function HomeShadowLight({ far, ...props }: ComponentProps<"pointLight"> 
   return <pointLight ref={light} castShadow shadow-mapSize={[512, 512]} shadow-bias={-0.004} shadow-radius={4} {...props} />;
 }
 
+const spots = new Map<THREE.SpotLight, [number, number]>();
+
+/**
+ * A spotlight whose shadows only refresh while the tour is between `from`
+ * and `to` (flight progress, in stops), every other frame. Aim it with
+ * `aim` (world space or, as here, the parent's space)
+ */
+export function StopShadowSpot({ from, to, aim, ...props }: ComponentProps<"spotLight"> & { from: number; to: number; aim: [number, number, number] }) {
+  const light = useRef<THREE.SpotLight>(null);
+  const target = useMemo(() => new THREE.Object3D(), []);
+  useEffect(() => {
+    const l = light.current;
+    if (!l) return;
+    l.shadow.autoUpdate = false;
+    l.shadow.needsUpdate = true;
+    spots.set(l, [from, to]);
+    return () => void spots.delete(l);
+  }, [from, to]);
+  return (
+    <>
+      <primitive object={target} position={aim} />
+      <spotLight ref={light} target={target} castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0015} shadow-normalBias={0.06} shadow-radius={4} {...props} />
+    </>
+  );
+}
+
 /**
  * Marks every mesh as a caster and receiver, keeping out noShadow subtrees,
  * and schedules the shadow refreshes
@@ -144,6 +170,12 @@ export function ShadowSetup() {
     const nearHome = flight.current < 1.6 || flight.current > LAST_STOP - 0.9;
     const lampFrame = nearHome && n % 3 === 0;
     if (lampFrame) lamps.forEach((l) => (l.shadow.needsUpdate = true));
+    // Spots take the frames the lamps leave free
+    if (!lampFrame && n % 2 === 0) {
+      spots.forEach(([from, to], l) => {
+        if (flight.current > from && flight.current < to) l.shadow.needsUpdate = true;
+      });
+    }
     const treesCast = quality.vegetationInLampShadows || !lampFrame;
     vegetation.current.forEach((o) => (o.castShadow = treesCast));
     if (moon) moon.shadow.needsUpdate = quality.moonShadowEvery <= 1 || (treesCast && n % quality.moonShadowEvery === 0);

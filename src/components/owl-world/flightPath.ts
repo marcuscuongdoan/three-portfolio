@@ -179,6 +179,8 @@ export interface FlightSample {
   hover: number;
   // 0 → cruising, 1 → on final approach to (or just off) a perch: flaring
   land: number;
+  // How the path banks here (+ = curving left), for picking a turn-round side
+  bank: number;
   camPos: THREE.Vector3;
   camTarget: THREE.Vector3;
 }
@@ -189,14 +191,13 @@ export const createSample = (): FlightSample => ({
   perch: 1,
   hover: 0,
   land: 1,
+  bank: 0,
   camPos: new THREE.Vector3(),
   camTarget: new THREE.Vector3(),
 });
 
 const smoothstep = THREE.MathUtils.smoothstep;
 const UP = new THREE.Vector3(0, 1, 0);
-const FORWARD_AXIS = new THREE.Vector3(0, 0, 1);
-const ORIGIN = new THREE.Vector3();
 const _tan = new THREE.Vector3();
 const _ahead = new THREE.Vector3();
 const _behind = new THREE.Vector3();
@@ -206,8 +207,6 @@ const _dirA = new THREE.Vector3();
 const _dirB = new THREE.Vector3();
 const _sphA = new THREE.Spherical();
 const _sphB = new THREE.Spherical();
-const _m = new THREE.Matrix4();
-const _q = new THREE.Quaternion();
 const _roll = new THREE.Quaternion();
 const _euler = new THREE.Euler();
 const _chasePos = new THREE.Vector3();
@@ -246,12 +245,20 @@ function easeSegment(seg: number, f: number) {
   return f;
 }
 
+// Bank (rad) per rad/s of turning round, so the owl leans into the turn
+const TURN_BANK = 0.32;
+const wrapAngle = (a: number) => a - Math.round(a / (Math.PI * 2)) * Math.PI * 2;
+/** Yaw that points the model's nose (-Z) along `dir` */
+const yawOf = (dir: THREE.Vector3) => Math.atan2(-dir.x, -dir.z);
+
 /**
  * Where the owl and camera are at scroll progress `p` (in stops).
- * `reverse` (0..1) is how far the owl has turned round to fly back along
- * the path, for when the page is scrolled up.
+ * `turnAngle` (rad, unwrapped) is how far the owl has swung round from
+ * flying forward: ±π flies back along the path, for when the page is
+ * scrolled up; its sign is the side it turned. `turnRate` (rad/s) banks it
+ * into the turn.
  */
-export function sampleFlight(p: number, aspect: number, fov: number, reverse: number, out: FlightSample) {
+export function sampleFlight(p: number, aspect: number, fov: number, turnAngle: number, turnRate: number, out: FlightSample) {
   const progress = THREE.MathUtils.clamp(p, 0, LAST_STOP);
   const seg = Math.min(LAST_STOP - 1, Math.floor(progress));
   const f = progress - seg;
@@ -266,20 +273,40 @@ export function sampleFlight(p: number, aspect: number, fov: number, reverse: nu
   curve.getTangentAt(toU(s - 1.5), _behind);
   const turn = _behind.x * _ahead.z - _behind.z * _ahead.x; // -(cross).y
   const bank = THREE.MathUtils.clamp(-turn * 1.1, -0.5, 0.5);
-  _m.lookAt(ORIGIN, _tan, UP);
-  out.quat.setFromRotationMatrix(_m).multiply(_roll.setFromAxisAngle(FORWARD_AXIS, bank));
-  if (reverse > 0) {
-    // Flying back: nose down the path the other way, banking the other way
-    _m.lookAt(ORIGIN, _back.copy(_tan).negate(), UP);
-    _q.setFromRotationMatrix(_m).multiply(_roll.setFromAxisAngle(FORWARD_AXIS, -bank));
-    out.quat.slerp(_q, reverse);
+  out.bank = bank;
+
+  // Built from angles, not by blending quaternions: turning round is a 180°
+  // swing, and a slerp across 180° has no shortest way round, so the owl
+  // flicked from side to side. Flying back mirrors the climb and the bank
+  const pathYaw = yawOf(_tan);
+  const back = Math.cos(turnAngle);
+  let yaw = pathYaw + turnAngle;
+  let pitch = Math.asin(THREE.MathUtils.clamp(_tan.y, -1, 1)) * back;
+  let roll = bank * back + THREE.MathUtils.clamp(turnRate * TURN_BANK, -0.7, 0.7);
+
+  // Near a perch or hover stop, ease into its pose. Measured from the path's
+  // own heading at the stop, so the blend never wraps round; the turn-round
+  // gives way to the pose (it sits facing its way whichever way it came)
+  for (const [k, d] of [
+    [seg, f],
+    [seg + 1, 1 - f],
+  ] as const) {
+    const def = STOPS[k]!;
+    if (def.kind === "chase" || d >= POSE_WINDOW) continue;
+    const w = 1 - smoothstep(d, 0, POSE_WINDOW);
+    const stopYaw = yawOf(curve.getTangentAt(toU(STOP_LEN[k]!), _back));
+    const pose = wrapAngle((def.yaw ?? 0) - stopYaw) - wrapAngle(pathYaw - stopYaw);
+    yaw = pathYaw + turnAngle * (1 - w) + pose * w;
+    pitch = THREE.MathUtils.lerp(pitch, def.pitch ?? 0, w);
+    roll = THREE.MathUtils.lerp(roll, 0, w);
   }
+  out.quat.setFromEuler(_euler.set(pitch, yaw, roll, "YXZ"));
 
   // Chase camera: behind and a little above, along the level heading — it
-  // swings round with the owl when it turns back
+  // swings round with the owl, the same way, when it turns back
   _flat.set(_tan.x + _ahead.x + _behind.x, 0, _tan.z + _ahead.z + _behind.z);
   if (_flat.lengthSq() < 1e-4) _flat.set(0, 0, -1);
-  _flat.normalize().applyAxisAngle(UP, Math.PI * reverse);
+  _flat.normalize().applyAxisAngle(UP, turnAngle);
   _chasePos.copy(out.pos).addScaledVector(_flat, -2.5).add(_offPos.set(0, 0.8, 0));
   _chaseTarget.copy(out.pos).addScaledVector(_flat, 3).add(_offTarget.set(0, 0.15, 0));
   out.camPos.copy(_chasePos);
@@ -297,12 +324,6 @@ export function sampleFlight(p: number, aspect: number, fov: number, reverse: nu
     const def = STOPS[k]!;
     if (def.kind === "chase") continue;
 
-    const wPose = 1 - smoothstep(d, 0, POSE_WINDOW);
-    if (wPose > 0) {
-      _euler.set(def.pitch ?? 0, def.yaw ?? 0, 0, "YXZ");
-      _q.setFromEuler(_euler);
-      out.quat.slerp(_q, wPose);
-    }
     const wSit = 1 - smoothstep(d, 0.03, PERCH_WINDOW);
     if (def.kind === "perch") {
       out.perch = Math.max(out.perch, wSit);

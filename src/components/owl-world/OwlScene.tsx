@@ -52,8 +52,16 @@ const CONTACT_KEY = CONTACT_POINT.clone()
 // about 2.5–3 s); MAX_RATE caps the speed (stops/s) on multi-stop jumps
 const OMEGA = 1.7;
 const MAX_RATE = 0.5;
-// How fast the owl turns round when the scroll changes direction (1/s)
-const TURN = 3;
+// How fast the owl turns round when the scroll changes direction: a
+// critically damped spring (1/s), so it eases into the turn and out of it,
+// about a second end to end
+const TURN_OMEGA = 3.6;
+// Within this much of a full 180° the turn could go either way; it goes the
+// way the path is curving, leaning in like a bird would
+const TURN_EITHER = 0.35;
+// The lean into a turn follows the turning speed through a spring of its own
+// (1/s), so the owl rolls into the bank rather than snapping to it
+const LEAN_OMEGA = 7;
 // Camera smoothing (1/s): the camera's offset from the owl — its direction,
 // distance and aim — eases toward the framing the path asks for, so swings
 // between viewpoints take their time while the camera still keeps up with a
@@ -215,7 +223,9 @@ function FlightRig() {
     active: 0,
     nearest: 0,
   });
-  const heading = useRef({ value: 0, target: 0 });
+  // Swing from flying forward (rad, unwrapped): even multiples of π forward,
+  // odd ones flying back
+  const heading = useRef({ angle: 0, rate: 0, target: 0, back: false, lean: 0, leanV: 0 });
   const camSpring = useMemo(() => new OffsetSpring(), []);
   const loiter = useMemo(() => new Loiter(), []);
   const focus = useRef({
@@ -250,15 +260,24 @@ function FlightRig() {
     }
 
     // Face the way it's actually going: turn round when scrolled back up,
-    // keep the last heading while hovering in place
-    if (flight.velocity < -0.02) heading.current.target = 1;
-    else if (flight.velocity > 0.02) heading.current.target = 0;
-    heading.current.value = THREE.MathUtils.damp(
-      heading.current.value,
-      heading.current.target,
-      TURN,
-      dt,
-    );
+    // keep the last heading while hovering in place. Each turn picks its side
+    // once and sticks to it; a turn cut short swings back the way it came
+    const hd = heading.current;
+    const back = flight.velocity < -0.02 ? true : flight.velocity > 0.02 ? false : hd.back;
+    if (back !== hd.back) {
+      hd.back = back;
+      const offset = back ? Math.PI : 0;
+      const nearest = Math.round((hd.angle - offset) / (Math.PI * 2)) * Math.PI * 2 + offset;
+      const diff = nearest - hd.angle;
+      // A fresh half-turn: lean the way the path curves
+      const side = sample.bank >= 0 ? 1 : -1;
+      hd.target =
+        Math.abs(diff) > Math.PI - TURN_EITHER && Math.sign(diff) !== side
+          ? nearest + side * Math.PI * 2
+          : nearest;
+    }
+    [hd.angle, hd.rate] = spring(hd.angle, hd.rate, hd.target, TURN_OMEGA, dt);
+    [hd.lean, hd.leanV] = spring(hd.lean, hd.leanV, hd.rate, LEAN_OMEGA, dt);
 
     const cam = state.camera as THREE.PerspectiveCamera;
     const aspect = state.size.width / state.size.height;
@@ -271,7 +290,8 @@ function FlightRig() {
       flight.current,
       aspect,
       fov,
-      THREE.MathUtils.smootherstep(heading.current.value, 0, 1),
+      hd.angle,
+      hd.lean,
       sample,
     );
 
