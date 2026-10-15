@@ -25,64 +25,25 @@ const OwlScene = dynamic(() => import("@/components/owl-world/OwlScene"), { ssr:
 // The last stop is home again
 const uiStop = (s: number | null) => (s === LAST_STOP ? STOP_INDEX.home : s);
 
-const NAV = [
-  { label: "Home", section: "home" },
-  { label: "Product", section: "product" },
-  { label: "Contact", section: "contact" },
-] as const;
-type Section = (typeof NAV)[number]["section"];
-
-const sectionOf = (stop: number): Section =>
-  stop === STOP_INDEX.contact ? "contact" : stop === STOP_INDEX.home || stop === LAST_STOP ? "home" : "product";
-
-function goToSection(section: Section) {
+/** Home from anywhere: from the museum on, home is ahead, so fly the return leg rather than rewind */
+function goHome() {
   const at = useOwlWorld.getState().nearestStop;
-  if (section === "product") flyTo(STOP_INDEX.museum);
-  else if (section === "contact") flyTo(STOP_INDEX.contact);
-  // From the museum on, home is ahead: fly the return leg rather than rewind
-  else flyTo(at >= STOP_INDEX.museum ? LAST_STOP : STOP_INDEX.home);
+  flyTo(at >= STOP_INDEX.museum ? LAST_STOP : STOP_INDEX.home);
 }
 
 function TopNav() {
-  const nearest = useOwlWorld((s) => s.nearestStop);
-  // Where a nav click is heading wins over where the owl is right now, so the
-  // menu answers the click at once
-  const navTarget = useOwlWorld((s) => s.navTarget);
-  const current = sectionOf(navTarget ?? nearest);
   return (
     <header className="fixed inset-x-0 top-0 z-40 pointer-events-none">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 pt-4 sm:gap-3 sm:px-8 sm:pt-6">
         <button
           type="button"
-          onClick={() => goToSection("home")}
+          onClick={goHome}
           className="pointer-events-auto hidden text-lg font-bold tracking-tight text-moon-50 owl-ink sm:block"
         >
           marcus<span className="text-lantern">.</span>
         </button>
-        <nav aria-label="Sections" className="owl-glass pointer-events-auto mx-auto flex rounded-full p-1 sm:mx-0">
-          {NAV.map((item) => {
-            const active = current === item.section;
-            return (
-              <button
-                key={item.section}
-                type="button"
-                onClick={() => goToSection(item.section)}
-                aria-current={active ? "true" : undefined}
-                className={`relative min-h-11 rounded-full px-3 text-sm font-medium transition-colors min-[360px]:px-4 sm:px-6 ${active ? "text-ink" : "text-moon-200 hover:text-moon-50"}`}
-              >
-                {active && (
-                  <motion.span
-                    layoutId="owl-nav-pill"
-                    className="absolute inset-0 rounded-full bg-lantern"
-                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                  />
-                )}
-                <span className="relative">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-        <div className="flex shrink-0 justify-end sm:min-w-[84px]">
+        {/* Pushed right on phones too, where the name is hidden */}
+        <div className="ml-auto flex shrink-0 justify-end sm:min-w-[84px]">
           <SceneControls />
         </div>
       </div>
@@ -201,8 +162,9 @@ const CAPTIONS: Record<number, { kicker: string; title: string; body: string; al
 function Caption({ stop }: { stop: number }) {
   const c = CAPTIONS[stop]!;
   const center = c.align === "center";
+  // Centred captions hang below the scroll hint and transit pill up top
   return (
-    <motion.div key={`cap-${stop}`} className={`pointer-events-none fixed inset-x-0 z-20 ${center ? "" : "bottom-24 md:bottom-8"}`} style={center ? { top: "5.5rem" } : undefined} {...fade}>
+    <motion.div key={`cap-${stop}`} className={`pointer-events-none fixed inset-x-0 z-20 ${center ? "" : "bottom-24 md:bottom-8"}`} style={center ? { top: "6.5rem" } : undefined} {...fade}>
       <div className={`mx-auto max-w-7xl px-4 sm:px-8 ${center ? "text-center" : ""}`}>
         <div className={`owl-glass inline-block max-w-lg rounded-3xl px-6 py-5 text-left ${center ? "text-center" : ""}`}>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-lantern">{c.kicker}</p>
@@ -348,8 +310,9 @@ function HintRow({ down, to }: { down: boolean; to: string }) {
 
 /**
  * Whenever the owl is resting at a stop: where scrolling on and scrolling
- * back go. Phones keep it up under the nav (the transit pill's spot, empty
- * while resting); larger screens sit it over the Next button
+ * back go. Up top in the transit pill's spot (empty while resting), the
+ * two taking turns; on phones a little left of centre to clear the settings
+ * button
  */
 function ScrollHint() {
   const raw = useOwlWorld((s) => s.activeStop);
@@ -371,10 +334,9 @@ function ScrollHint() {
   }, [shown]);
   useEffect(() => () => void (pillTurn.hintUp = false), []);
 
-  const isHome = active === STOP_INDEX.home;
   const isContact = active === STOP_INDEX.contact;
-  // Contact: the form fills the right on large screens and a phone on its side
-  const placement = `max-md:top-20 max-md:left-1/2 max-md:-translate-x-1/2 md:right-6 ${isHome ? "md:bottom-6" : "md:bottom-[5.5rem]"} ${isContact ? "md:hidden short:landscape:hidden" : ""}`;
+  // A phone on its side has no room for it beside the contact form
+  const placement = `left-[calc(50%-1.75rem)] top-4 -translate-x-1/2 sm:left-1/2 sm:top-6 ${isContact ? "short:landscape:hidden" : ""}`;
   return (
     <div aria-hidden className={`pointer-events-none fixed z-30 ${placement}`}>
       <AnimatePresence onExitComplete={() => (pillTurn.hintUp = false)}>
@@ -389,8 +351,6 @@ function ScrollHint() {
           >
             <HintRow down to={SECTION_NAMES[shown + 1] ?? "Home"} />
             {shown > 0 && <HintRow down={false} to={SECTION_NAMES[shown - 1]!} />}
-            {/* Points down at the Next button it sits over */}
-            {!isHome && <span className="owl-glass absolute -bottom-1.5 right-10 hidden h-3 w-3 rotate-45 rounded-sm md:block" />}
           </motion.div>
         )}
       </AnimatePresence>

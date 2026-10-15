@@ -192,8 +192,10 @@ export function TransitPill() {
     <div
       ref={box}
       aria-hidden
-      // Phones keep it up under the nav: the bottom has the form or the cards
-      className={`owl-glass pointer-events-none fixed bottom-6 left-1/2 z-20 w-60 rounded-2xl px-4 py-2.5 max-md:bottom-auto max-md:top-20 ${atContact ? "short:landscape:hidden" : ""}`}
+      // Up top, where the section menu used to be: the bottom has the form,
+      // the cards and the captions. On phones it centres a little left, to
+      // clear the settings button
+      className={`owl-glass pointer-events-none fixed left-[calc(50%-1.75rem)] top-4 z-20 w-60 rounded-2xl px-4 py-2.5 sm:left-1/2 sm:top-6 ${atContact ? "short:landscape:hidden" : ""}`}
       style={{ opacity: 0, transform: "translate(-50%, 12px)" }}
     >
       <div className="flex items-baseline justify-between gap-3">
