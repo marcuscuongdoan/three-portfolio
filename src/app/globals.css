@@ -12,6 +12,9 @@
 :root {
   --background: #EAE4DC;
   --foreground: #2C2420;
+  /* The owl homepage's accent; seasonal themes (src/themes) recolour it */
+  --lantern: #f2c879;
+  --lantern-soft: #f7d99c;
 }
 
 @theme inline {
@@ -40,8 +43,8 @@
   --color-moon-100: #e4dac6;
   --color-moon-200: #c9c0b0;
   --color-moon-400: #9a93a6;
-  --color-lantern: #f2c879;
-  --color-lantern-soft: #f7d99c;
+  --color-lantern: var(--lantern);
+  --color-lantern-soft: var(--lantern-soft);
 
   /* League of Legends palette (used under /legends) */
   --font-lol: var(--font-lol-display), serif;

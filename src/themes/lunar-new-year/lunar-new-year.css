@@ -1,0 +1,10 @@
+/* Lucky gold for the accent, lacquer red in the glass */
+.theme-lunar-new-year {
+  --lantern: #ffcf4a;
+  --lantern-soft: #ffe08a;
+}
+
+.theme-lunar-new-year .owl-glass {
+  background: color-mix(in srgb, #3a0f14 64%, transparent);
+  border-color: rgb(255 207 74 / 0.18);
+}

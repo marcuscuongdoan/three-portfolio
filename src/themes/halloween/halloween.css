@@ -1,0 +1,10 @@
+/* Pumpkin orange for the accent, and a bruised-purple tint on the glass */
+.theme-halloween {
+  --lantern: #ff9a3c;
+  --lantern-soft: #ffb76b;
+}
+
+.theme-halloween .owl-glass {
+  background: color-mix(in srgb, #1d1033 64%, transparent);
+  border-color: rgb(255 154 60 / 0.16);
+}

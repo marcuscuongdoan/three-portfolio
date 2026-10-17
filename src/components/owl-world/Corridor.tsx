@@ -38,6 +38,13 @@ export function cardTop(row: "web" | "lab", i: number) {
 }
 const FACE_ANGLE = 0.95;
 
+// The gate: two posts carrying the sign, which hangs at SIGN_Y
+export const GATE_POST_X = 1.75;
+export const GATE_SIGN_Y = CORRIDOR_Y + 1.95;
+export const GATE_SIGN = { w: 3.1, h: 0.97 };
+/** The foot of the 3D lab gate, between its posts (seasonal decorations hang off it) */
+export const LAB_GATE = new THREE.Vector3(CORRIDOR_X, 0, LAB_START + GATE_LEAD);
+
 export function roundedRectGeometry(w: number, h: number, r: number) {
   const s = new THREE.Shape();
   const x = -w / 2;
@@ -126,11 +133,11 @@ function FlightCard({ app, position, rotationY, seed }: { app: ShowcaseApp; posi
 function Gate({ z, title, kicker, accent }: { z: number; title: string; kicker: string; accent: string }) {
   const texture = useMemo(() => makeSign(title, kicker, { accent }), [title, kicker, accent]);
   useEffect(() => () => texture.dispose(), [texture]);
-  const signY = CORRIDOR_Y + 1.95;
-  const sign = useMemo(() => roundedRectGeometry(3.1, 0.97, 0.1), []);
+  const signY = GATE_SIGN_Y;
+  const sign = useMemo(() => roundedRectGeometry(GATE_SIGN.w, GATE_SIGN.h, 0.1), []);
   return (
     <group position={[CORRIDOR_X, 0, z]}>
-      {[-1.75, 1.75].map((x) => (
+      {[-GATE_POST_X, GATE_POST_X].map((x) => (
         <group key={x} position-x={x}>
           <mesh position-y={signY / 2}>
             <cylinderGeometry args={[0.09, 0.13, signY, 8]} />

@@ -229,12 +229,12 @@ function Clouds() {
       });
       list.push({ pos: [x, y, z], scale, speed, puffs });
     };
-    // Around the contact point (the owl's sky stop) and behind it
+    // Around the contact point (the owl's stop over the castle) and behind it
     const c = CONTACT_POINT;
     add(c.x - 8, c.y - 4.5, c.z - 11, 1.3, 0);
     add(c.x + 9, c.y + 1.5, c.z - 14, 1.6, 0);
     add(c.x - 13, c.y + 3, c.z - 18, 1.8, 0);
-    add(c.x + 7, c.y - 7, c.z - 10, 1.2, 0);
+    add(c.x + 7, c.y - 2, c.z - 14, 1.2, 0);
     add(c.x + 16, c.y - 3, c.z - 7, 1.4, 0);
     add(c.x - 3, c.y + 5, c.z - 26, 2.2, 0);
     // Drifting high over the whole valley

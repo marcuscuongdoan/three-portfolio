@@ -26,7 +26,7 @@ export const STOPS: StopDef[] = [
   { id: "web", kind: "chase" },
   { id: "lab", kind: "chase", pace: 6.5 },
   { id: "museum", kind: "perch", yaw: 0 },
-  { id: "contact", kind: "hover", yaw: Math.PI + 0.38, pitch: 0.35 },
+  { id: "contact", kind: "hover", yaw: Math.PI + 0.38, pitch: 0.35, pace: 8 },
   { id: "return", kind: "perch", yaw: Math.PI + 0.32 },
 ];
 export const LAST_STOP = STOPS.length - 1;
@@ -37,6 +37,10 @@ export const cameraFov = (aspect: number) => (aspect < PORTRAIT_ASPECT ? 58 : 45
 export const STOP_INDEX = { home: 0, web: 1, lab: 2, museum: 3, contact: 4, return: 5 } as const;
 // Stops that hold for an extra screen of scrolling before the flight goes on
 export const HOLD_STOPS = new Set<number>([STOP_INDEX.museum]);
+// Legs (by the stop they start from) too short for the chase camera: the
+// view goes straight from one stop's framing to the next instead of swinging
+// round behind the owl and back
+const DIRECT_LEGS = new Set<number>([STOP_INDEX.contact]);
 
 // Where the owl sits on the branch — the tree and branch are built around it
 export const PERCH_HOME = new THREE.Vector3(0, 2.79, 0.01);
@@ -45,7 +49,8 @@ export const MUSEUM_CENTER = new THREE.Vector3(-4.5, 1.6, -86);
 export const MUSEUM_RADIUS = 8.4;
 export const MUSEUM_WALLS = 3;
 export const MUSEUM_WALL_STEP = THREE.MathUtils.degToRad(30);
-export const CONTACT_POINT = new THREE.Vector3(-3.2, 15.5, -78);
+// Hovering over the castle, a few metres above its turrets
+export const CONTACT_POINT = new THREE.Vector3(6.6, 13, -10.5);
 
 // The flight corridor the cards line
 export const CORRIDOR_X = -4.5;
@@ -75,13 +80,14 @@ const pts: { p: P; stop?: number }[] = [
   { p: [1.6, 9.8, -88.4] },
   { p: [1.8, 12.8, -83] },
   { p: [-0.6, 14.9, -78.8] },
-  { p: [CONTACT_POINT.x, CONTACT_POINT.y, CONTACT_POINT.z], stop: 4 },
-  // A long glide home over the house
+  // A long glide back up the valley to hover over the castle
   { p: [-2.4, 15.5, -62] },
-  { p: [-0.4, 13, -38] },
-  { p: [2.2, 10.2, -14] },
-  // ...swinging out over the open garden so it comes in from the right,
+  { p: [-0.4, 14.5, -40] },
+  { p: [3.5, 13.6, -22] },
+  { p: [CONTACT_POINT.x, CONTACT_POINT.y, CONTACT_POINT.z], stop: 4 },
+  // ...then down over the open garden so it comes in from the right,
   // clear of the tree, and lands facing the camera
+  { p: [5.6, 9.6, -6.4] },
   { p: [4.2, 6.4, -4.2] },
   { p: [3.0, 4.3, 1.1] },
   { p: [1.0, 3.25, 0.75] },
@@ -156,13 +162,14 @@ function stopCamera(id: string, aspect: number, fov: number, pos: THREE.Vector3,
       return true;
     }
     case "contact":
+      // Above and in front, looking down past the owl onto the castle below.
       // On a phone the form fills the lower part; the owl hovers above it
       if (portrait) {
-        pos.set(0, 0.3, 4.6);
-        target.set(0, -0.9, 0);
+        pos.set(0, 2.0, 4.8);
+        target.set(0, -2.2, 0);
       } else {
-        pos.set(0.7, 0.32, 3.05);
-        target.set(0.72, 0.02, 0);
+        pos.set(0.45, 1.2, 3.6);
+        target.set(0.3, -0.45, 0);
       }
       return true;
     default:
@@ -311,6 +318,13 @@ export function sampleFlight(p: number, aspect: number, fov: number, turnAngle: 
   _chaseTarget.copy(out.pos).addScaledVector(_flat, 3).add(_offTarget.set(0, 0.15, 0));
   out.camPos.copy(_chasePos);
   out.camTarget.copy(_chaseTarget);
+  // On a direct leg the first stop's framing rides along with the owl in
+  // place of the chase camera, and the next stop's takes over from it
+  const direct = DIRECT_LEGS.has(seg) && stopCamera(STOPS[seg]!.id, aspect, fov, _offPos, _offTarget);
+  if (direct) {
+    out.camPos.copy(out.pos).add(_offPos);
+    out.camTarget.copy(out.pos).add(_offTarget);
+  }
 
   out.perch = 0;
   out.hover = 0;
@@ -334,9 +348,12 @@ export function sampleFlight(p: number, aspect: number, fov: number, turnAngle: 
     // The camera takes the stop's framing over the last stretch of the
     // approach (by distance, so long legs don't drag it along early), and
     // never past the middle of the segment
-    const wCam =
-      (1 - THREE.MathUtils.smootherstep(d, 0, CAMERA_WINDOW)) *
-      (1 - THREE.MathUtils.smootherstep(out.pos.distanceTo(_stopPos), CAMERA_NEAR, CAMERA_REACH));
+    const wCam = direct
+      ? k === seg
+        ? 0
+        : THREE.MathUtils.smootherstep(f, 0.1, 0.9)
+      : (1 - THREE.MathUtils.smootherstep(d, 0, CAMERA_WINDOW)) *
+        (1 - THREE.MathUtils.smootherstep(out.pos.distanceTo(_stopPos), CAMERA_NEAR, CAMERA_REACH));
     // The flare: body pitched up, wings braking, until the sitting pose
     // takes over (it's upright on its own)
     if (def.kind === "perch") {

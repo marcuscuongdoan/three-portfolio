@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, Suspense, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGLTF, useProgress } from "@react-three/drei";
@@ -18,6 +18,7 @@ import { ProductListButton, ProductListSheet } from "@/components/owl-world/Prod
 import SceneControls from "@/components/owl-world/SceneControls";
 import { OWL_FULL_URL, OWL_LITE_URL, savedHighQuality } from "@/components/owl-world/quality";
 import { useWorld3DStore } from "@/store/useWorld3DStore";
+import { useSeasonalTheme } from "@/themes";
 import "@/components/owl-world/owl-world.css";
 
 const OwlScene = dynamic(() => import("@/components/owl-world/OwlScene"), { ssr: false });
@@ -69,11 +70,12 @@ const fade = {
 };
 
 function HomePanel() {
+  const kicker = useSeasonalTheme()?.copy?.homeKicker ?? "Welcome to the nest";
   return (
     <motion.div key="home" className="pointer-events-none fixed inset-0 z-20" {...fade}>
       <div className="mx-auto flex h-full max-w-7xl flex-col justify-end gap-6 px-4 pb-8 sm:px-8 sm:pb-12 md:flex-row md:items-end md:justify-between">
         <div className="max-w-xl text-moon-50 owl-ink">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.35em] text-lantern">Welcome to the nest</p>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.35em] text-lantern">{kicker}</p>
           <h1 className="text-4xl font-bold leading-[1.05] sm:text-6xl lg:text-7xl">
             <span className="block">Hi, I&apos;m Cuong</span>
             <span className="block">
@@ -428,6 +430,7 @@ function MuseumIndex() {
 
 function Overlays() {
   const active = uiStop(useOwlWorld((s) => s.activeStop));
+  const contactShown = useOwlWorld((s) => s.contactShown);
   const portrait = usePortrait();
   return (
     <>
@@ -436,7 +439,7 @@ function Overlays() {
         {/* On phones the museum carousel says it all; the caption would cover the frame */}
         {active !== null && CAPTIONS[active] && !(portrait && active === STOP_INDEX.museum) && <Caption key={`cap-${active}`} stop={active} />}
       </AnimatePresence>
-      <ContactPanel visible={active === STOP_INDEX.contact} />
+      <ContactPanel visible={contactShown} />
       {active === STOP_INDEX.museum && <MuseumIndex />}
       {active === STOP_INDEX.museum && portrait && <MuseumCarousel />}
     </>
@@ -459,6 +462,8 @@ export default function OwlWorld() {
 
   // The scene waits for the saved quality setting, and starts over when it changes
   const highQuality = useOwlWorld((s) => s.highQuality);
+  // Halloween, New Year...: see src/themes
+  const theme = useSeasonalTheme();
   useEffect(() => {
     const high = savedHighQuality();
     // Start on the owl while the scene's code loads; only the one this setting uses
@@ -467,9 +472,9 @@ export default function OwlWorld() {
   }, []);
 
   return (
-    <main className="relative bg-night">
+    <main className={`relative bg-night ${theme?.className ?? ""}`}>
       <div className="fixed inset-0 z-0">
-        {highQuality !== null && <OwlScene key={highQuality ? "high" : "auto"} high={highQuality} />}
+        {highQuality !== null && <OwlScene key={highQuality ? "high" : "auto"} high={highQuality} theme={theme} />}
       </div>
 
       {/* One full-screen snap section per stop; they only carry the scroll.
@@ -496,6 +501,11 @@ export default function OwlWorld() {
       <TransitPill />
       <MailboxTooltip />
       <ProductListSheet />
+      {theme?.Overlay && (
+        <Suspense fallback={null}>
+          <theme.Overlay />
+        </Suspense>
+      )}
       <LeaveModal />
       <CvModal />
       <Loader />

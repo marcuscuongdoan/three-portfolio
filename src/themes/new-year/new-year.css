@@ -1,0 +1,10 @@
+/* Champagne gold for the accent, midnight in the glass */
+.theme-new-year {
+  --lantern: #ffd76a;
+  --lantern-soft: #ffe59e;
+}
+
+.theme-new-year .owl-glass {
+  background: color-mix(in srgb, #0b1030 66%, transparent);
+  border-color: rgb(255 215 106 / 0.18);
+}

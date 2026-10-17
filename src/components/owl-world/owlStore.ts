@@ -46,6 +46,9 @@ interface OwlWorldState {
   highQuality: boolean | null;
   setHighQuality: (high: boolean) => void;
   setStops: (active: number | null, nearest: number) => void;
+  // The contact form is up: from leaving the museum until leaving the contact stop
+  contactShown: boolean;
+  setContactShown: (shown: boolean) => void;
   setHoveredApp: (id: string | null) => void;
   setPendingApp: (app: ShowcaseApp | null) => void;
   setLoaded: () => void;
@@ -70,6 +73,8 @@ export const useOwlWorld = create<OwlWorldState>()((set) => ({
   highQuality: null,
   setHighQuality: (highQuality) => set({ highQuality }),
   setStops: (activeStop, nearestStop) => set({ activeStop, nearestStop }),
+  contactShown: false,
+  setContactShown: (contactShown) => set({ contactShown }),
   setHoveredApp: (hoveredApp) => set({ hoveredApp }),
   setPendingApp: (pendingApp) => set({ pendingApp }),
   setLoaded: () => set({ loaded: true }),

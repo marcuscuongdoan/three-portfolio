@@ -37,6 +37,7 @@ import {
 import { framePose } from '@/components/owl-world/Museum';
 import { flight, guide, useOwlWorld } from '@/components/owl-world/owlStore';
 import { makeQuality, QualityContext } from '@/components/owl-world/quality';
+import type { SeasonalTheme } from '@/themes';
 
 const Effects = lazy(() => import('@/components/owl-world/Effects'));
 // How far the adaptive resolution moves at a time
@@ -342,6 +343,14 @@ function FlightRig() {
       last.current = { active, nearest };
       useOwlWorld.getState().setStops(active, nearest);
     }
+    // The contact form comes up as the owl sets off from the museum, so it
+    // is ready by the time the owl hovers over the castle
+    const contactShown =
+      flight.current > STOP_INDEX.museum + SETTLED &&
+      flight.current < STOP_INDEX.contact + SETTLED;
+    if (contactShown !== useOwlWorld.getState().contactShown) {
+      useOwlWorld.getState().setContactShown(contactShown);
+    }
   });
 
   return (
@@ -446,7 +455,7 @@ function ResetCursorOnLeave() {
   return null;
 }
 
-export default function OwlScene({ high }: { high: boolean }) {
+export default function OwlScene({ high, theme }: { high: boolean; theme?: SeasonalTheme | null }) {
   // Fixed for the canvas' life: the page remounts it when the setting changes
   const [quality] = useState(() => makeQuality(high, window.innerWidth >= 768));
   const shadows = quality.shadows;
@@ -514,6 +523,11 @@ export default function OwlScene({ high }: { high: boolean }) {
         <HomeGrounds />
         <Corridor />
         <Museum />
+        {theme?.Scene && (
+          <Suspense fallback={null}>
+            <theme.Scene />
+          </Suspense>
+        )}
         <FlightRig />
         <Suspense fallback={null}>
           <Companions />

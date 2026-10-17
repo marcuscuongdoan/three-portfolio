@@ -1,0 +1,10 @@
+/* Holly red for the accent, pine green in the glass */
+.theme-christmas {
+  --lantern: #ff6f61;
+  --lantern-soft: #ff9a8f;
+}
+
+.theme-christmas .owl-glass {
+  background: color-mix(in srgb, #0f2a24 64%, transparent);
+  border-color: rgb(255 255 255 / 0.16);
+}
