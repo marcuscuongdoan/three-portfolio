@@ -188,7 +188,7 @@ export function useFlightScroll() {
       e.preventDefault();
       // Not while a dialog is up
       const ui = useOwlWorld.getState();
-      if (ui.pendingApp || ui.cvPrompt) return;
+      if (ui.pendingApp || ui.cvPrompt || ui.productList) return;
       const now = performance.now();
       const abs = Math.abs(e.deltaY);
       const quiet = now - lastWheel > WHEEL_GAP_MS;
@@ -207,7 +207,7 @@ export function useFlightScroll() {
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       if (el?.tagName === "BUTTON" && e.key === " ") return;
       const ui = useOwlWorld.getState();
-      if (ui.pendingApp || ui.cvPrompt) return;
+      if (ui.pendingApp || ui.cvPrompt || ui.productList) return;
       const dir = e.key === "ArrowDown" || e.key === "PageDown" || (e.key === " " && !e.shiftKey) ? 1 : e.key === "ArrowUp" || e.key === "PageUp" || (e.key === " " && e.shiftKey) ? -1 : 0;
       if (!dir) return;
       e.preventDefault();

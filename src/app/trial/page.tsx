@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { track } from "@/lib/analytics";
 import Link from "next/link";
+import { ProjectsMenu } from "@/components/ProjectSheet";
 import { Canvas } from "@react-three/fiber";
 import { useProgress } from "@react-three/drei";
 import TrialScene from "@/components/trial/TrialScene";
@@ -256,12 +257,12 @@ export default function TrialPage() {
               {hovered ? hovered.title : "Click a legend to inspect"}
             </p>
           </div>
-          <Link
-            href="/"
-            className="trial-button fixed z-30 bottom-[calc(env(safe-area-inset-bottom)+2.5rem)] left-4 sm:left-8 px-6 py-2 text-sm"
-          >
-            Portfolio
-          </Link>
+          <div className="fixed z-30 bottom-[calc(env(safe-area-inset-bottom)+2.5rem)] left-4 sm:left-8 flex gap-2">
+            <Link href="/" className="trial-button px-6 py-2 text-sm">
+              Portfolio
+            </Link>
+            <ProjectsMenu className="trial-button px-5 py-2 text-sm">Projects</ProjectsMenu>
+          </div>
         </>
       )}
 

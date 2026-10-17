@@ -120,6 +120,22 @@ const labApps: ShowcaseApp[] = [
   },
 ];
 
+// Pages on this site that aren't hung in the museum (its walls hold seven)
+const extraApps: ShowcaseApp[] = [
+  {
+    id: "extra-khoc-block",
+    name: "Khóc Blóck",
+    kind: "lab",
+    tagline: "Metal light show to a rock chorus",
+    description: "A portrait lit hit by hit to Phùng Khánh Linh's second chorus: strobes, chrome type and a torch under your cursor.",
+    url: "/khoc-block",
+    external: false,
+    image: "/museum/khoc-block.webp",
+    accent: "#9fb2d6",
+  },
+];
+
 export const WEB_APPS = webApps;
 export const LAB_APPS = labApps;
+export const EXTRA_APPS = extraApps;
 export const SHOWCASE_APPS: ShowcaseApp[] = [...webApps, ...labApps];

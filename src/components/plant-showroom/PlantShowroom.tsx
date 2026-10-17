@@ -2,6 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ProjectsMenu } from "@/components/ProjectSheet";
+import ProjectsIcon from "@/components/ProjectsIcon";
 import { Canvas } from "@react-three/fiber";
 import { useProgress } from "@react-three/drei";
 import { track } from "@/lib/analytics";
@@ -281,12 +283,20 @@ export default function PlantShowroom({ def }: { def: PlantDefinition }) {
             </div>
           )}
         </div>
-        <Link
-          href="/"
-          className="pointer-events-auto font-at rounded-full border border-slate-300 bg-white/70 px-4 py-1.5 text-sm font-semibold uppercase tracking-wider text-slate-700 backdrop-blur transition-colors hover:border-slate-900 hover:text-slate-900"
-        >
-          ← Portfolio
-        </Link>
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+          <Link
+            href="/"
+            className="font-at rounded-full border border-slate-300 bg-white/70 px-4 py-1.5 text-sm font-semibold uppercase tracking-wider text-slate-700 backdrop-blur transition-colors hover:border-slate-900 hover:text-slate-900"
+          >
+            ← Portfolio
+          </Link>
+          {/* Icon-only on phones, where the title needs the width */}
+          <ProjectsMenu className="font-at flex items-center gap-2 rounded-full border border-slate-300 bg-white/70 px-2.5 py-2 text-sm font-semibold uppercase tracking-wider text-slate-700 backdrop-blur transition-colors hover:border-slate-900 hover:text-slate-900 md:px-4 md:py-1.5">
+            <ProjectsIcon />
+            <span className="hidden md:inline">Projects</span>
+            <span className="sr-only md:hidden">Projects</span>
+          </ProjectsMenu>
+        </div>
       </header>
 
       <div className="at-chrome fixed right-4 top-[4.25rem] z-40 md:right-8 md:top-[5.5rem]">

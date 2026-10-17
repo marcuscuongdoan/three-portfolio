@@ -34,6 +34,9 @@ interface OwlWorldState {
   // The "download my CV?" dialog is open
   cvPrompt: boolean;
   setCvPrompt: (open: boolean) => void;
+  // The phone product list sheet is open
+  productList: boolean;
+  setProductList: (open: boolean) => void;
   setMuseumFocus: (id: string | null) => void;
   pendingApp: ShowcaseApp | null;
   loaded: boolean;
@@ -58,6 +61,8 @@ export const useOwlWorld = create<OwlWorldState>()((set) => ({
   setNavTarget: (navTarget) => set({ navTarget }),
   cvPrompt: false,
   setCvPrompt: (cvPrompt) => set({ cvPrompt }),
+  productList: false,
+  setProductList: (productList) => set({ productList }),
   setMuseumFocus: (museumFocus) => set({ museumFocus }),
   pendingApp: null,
   loaded: false,

@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGLTF, useProgress } from "@react-three/drei";
-import { LAB_APPS, WEB_APPS } from "@/data/apps";
+import { EXTRA_APPS, LAB_APPS, WEB_APPS } from "@/data/apps";
 import { HOLD_STOPS, LAST_STOP, STOP_INDEX } from "@/components/owl-world/flightPath";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
 import { holdState, landed, pillTurn, TransitPill, transitState } from "@/components/owl-world/transit";
@@ -14,6 +14,7 @@ import LeaveModal from "@/components/owl-world/LeaveModal";
 import CvModal from "@/components/owl-world/CvModal";
 import { MailboxTooltip } from "@/components/owl-world/Mailbox";
 import MuseumCarousel, { usePortrait } from "@/components/owl-world/MuseumCarousel";
+import { ProductListButton, ProductListSheet } from "@/components/owl-world/ProductList";
 import SceneControls from "@/components/owl-world/SceneControls";
 import { OWL_FULL_URL, OWL_LITE_URL, savedHighQuality } from "@/components/owl-world/quality";
 import { useWorld3DStore } from "@/store/useWorld3DStore";
@@ -42,6 +43,8 @@ function TopNav() {
         >
           marcus<span className="text-lantern">.</span>
         </button>
+        {/* Phones, where the name is hidden: every product without flying to the museum */}
+        <ProductListButton />
         {/* Pushed right on phones too, where the name is hidden */}
         <div className="ml-auto flex shrink-0 justify-end sm:min-w-[84px]">
           <SceneControls />
@@ -123,6 +126,25 @@ function HomePanel() {
             Start the flight <span aria-hidden>→</span>
           </button>
           <p className="mt-3 text-center text-xs text-moon-400">or just scroll</p>
+          {/* Pages that aren't on the museum walls */}
+          {EXTRA_APPS.map((app) => (
+            <button
+              key={app.id}
+              type="button"
+              onClick={() => useOwlWorld.getState().setPendingApp(app)}
+              className="group mt-4 flex w-full items-center gap-3 rounded-2xl border border-white/10 p-2 text-left transition hover:bg-white/10"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- small local thumbnail */}
+              {app.image && <img src={app.image} alt="" className="h-10 w-14 shrink-0 rounded-lg object-cover" />}
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.3em] text-lantern">Also here</span>
+                <span className="block truncate text-sm font-semibold text-moon-50">{app.name}</span>
+              </span>
+              <span aria-hidden className="pr-1 text-moon-400 transition group-hover:translate-x-1 group-hover:text-moon-50">
+                →
+              </span>
+            </button>
+          ))}
           {/* The mailbox in the garden hands out the CV; this is the same for
               keyboard and screen-reader users */}
           <button
@@ -311,8 +333,8 @@ function HintRow({ down, to }: { down: boolean; to: string }) {
 /**
  * Whenever the owl is resting at a stop: where scrolling on and scrolling
  * back go. Up top in the transit pill's spot (empty while resting), the
- * two taking turns; on phones a little left of centre to clear the settings
- * button
+ * two taking turns; centred between the products button and the settings
+ * button on phones
  */
 function ScrollHint() {
   const raw = useOwlWorld((s) => s.activeStop);
@@ -336,7 +358,7 @@ function ScrollHint() {
 
   const isContact = active === STOP_INDEX.contact;
   // A phone on its side has no room for it beside the contact form
-  const placement = `left-[calc(50%-1.75rem)] top-4 -translate-x-1/2 sm:left-1/2 sm:top-6 ${isContact ? "short:landscape:hidden" : ""}`;
+  const placement = `left-1/2 top-4 -translate-x-1/2 sm:top-6 ${isContact ? "short:landscape:hidden" : ""}`;
   return (
     <div aria-hidden className={`pointer-events-none fixed z-30 ${placement}`}>
       <AnimatePresence onExitComplete={() => (pillTurn.hintUp = false)}>
@@ -473,6 +495,7 @@ export default function OwlWorld() {
       <ScrollHint />
       <TransitPill />
       <MailboxTooltip />
+      <ProductListSheet />
       <LeaveModal />
       <CvModal />
       <Loader />

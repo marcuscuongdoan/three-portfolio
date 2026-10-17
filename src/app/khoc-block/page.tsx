@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ProjectsMenu } from "@/components/ProjectSheet";
 import {
   KHOC_BLOCK_PORTRAIT,
   KHOC_BLOCK_SPOTS,
@@ -395,12 +396,12 @@ export default function KhocBlockPage() {
         className="kb-player fixed z-[5] left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+1rem)]"
       />
 
-      <Link
-        href="/"
-        className="kb-button fixed z-20 left-4 top-4 px-4 py-1.5 text-sm text-white sm:left-8 sm:top-6"
-      >
-        Portfolio
-      </Link>
+      <div className="fixed z-20 left-4 top-4 flex gap-2 sm:left-8 sm:top-6">
+        <Link href="/" className="kb-button px-4 py-1.5 text-sm text-white">
+          Portfolio
+        </Link>
+        <ProjectsMenu className="kb-button px-4 py-1.5 text-sm text-white">Projects</ProjectsMenu>
+      </div>
 
       {(silent || IS_DEV) && (
         <p className="fixed bottom-2 left-3 z-20 font-mono text-[11px] text-white/45">
