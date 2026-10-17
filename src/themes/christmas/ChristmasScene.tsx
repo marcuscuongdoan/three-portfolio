@@ -8,15 +8,17 @@ import { useQuality } from "@/components/owl-world/quality";
 import Falling, { type FallBox } from "@/themes/shared/Falling";
 import Garland from "@/themes/shared/Garland";
 import { LAB } from "@/themes/shared/lab";
+import { facingRoad, ROAD_POSTS, WEB } from "@/themes/shared/web";
 import { MUSEUM } from "@/themes/shared/museum";
 import { mulberry32 } from "@/themes/shared/random";
 import { starGeometry } from "@/themes/shared/star";
 
 /**
  * Christmas: snow over the whole valley, a fir decked with blinking lights
- * on the left of the home view with presents under it, at the 3D lab gate
- * a string of lights hung with baubles, little firs and more presents, and
- * in the museum the same lights along the walls and wreaths on the pylons.
+ * on the left of the home view with presents under it, at the web products
+ * and 3D lab gates a string of lights hung with baubles, little firs and more
+ * presents, a wreath on every lamp along the road, and in the museum the
+ * same lights along the walls and wreaths on the pylons.
  */
 
 const SNOW: FallBox[] = [
@@ -51,6 +53,15 @@ const LAB_PRESENTS: Present[] = LAB.aisleSides.flatMap(([x, z], side): Present[]
   return [
     [x + out * 0.35, z + 0.55, 0.3, 0.24, 0.3, "#c0282d", "#ffd166", 0.4],
     [x - out * 0.3, z + 0.5, 0.22, 0.3, 0.22, "#1f6f4a", "#f4ecdc", -0.3],
+  ];
+});
+
+// Beside the little firs at the web products gate
+const WEB_PRESENTS: Present[] = WEB.gateSides.flatMap(([x, z], side): Present[] => {
+  const out = side ? 1 : -1;
+  return [
+    [x - out * 0.45, z + 0.35, 0.28, 0.22, 0.28, "#2d4fa8", "#ffd166", -0.5],
+    [x + out * 0.1, z + 0.6, 0.24, 0.3, 0.24, "#c0282d", "#f4ecdc", 0.2],
   ];
 });
 
@@ -273,6 +284,18 @@ export default function ChristmasScene() {
         <Tree key={side} position={[x + (side ? 0.75 : -0.75), 0, z + 0.1]} scale={0.75} />
       ))}
       <Presents list={LAB_PRESENTS} />
+      {/* The web products gate */}
+      <Baubles {...WEB.garland} />
+      {WEB.gateSides.map(([x, z], side) => (
+        <Tree key={side} position={[x + (side ? 0.3 : -0.3), 0, z - 0.2]} scale={0.7} />
+      ))}
+      <Presents list={WEB_PRESENTS} />
+      {/* A wreath on each lamp post along the road, on its road side */}
+      {ROAD_POSTS.map(({ pos, away }, i) => (
+        <group key={i} position={[pos.x - away.x * 0.08, 1.1, pos.z - away.z * 0.08]} rotation-y={facingRoad(away)} scale={0.42}>
+          <Wreath />
+        </group>
+      ))}
       <MuseumChristmas />
     </>
   );

@@ -8,13 +8,15 @@ import { houseToWorld } from "@/components/owl-world/homePlan";
 import { useQuality } from "@/components/owl-world/quality";
 import Garland from "@/themes/shared/Garland";
 import { LAB } from "@/themes/shared/lab";
+import { facingRoad, ROAD_POSTS, WEB } from "@/themes/shared/web";
 import { MUSEUM } from "@/themes/shared/museum";
 import { HOME_EYE, mulberry32 } from "@/themes/shared/random";
 import { flicker, Pumpkin, PumpkinKit } from "@/themes/halloween/pumpkin";
 
 /**
  * Halloween: jack-o'-lanterns round the mailbox and along the garden wall,
- * more strung across the 3D lab gate and floating down its aisle, strung
+ * strung across the web products and 3D lab gates, at the foot of every
+ * lamp along the road and floating down the lab's aisle, strung
  * over the museum walls with cobwebs in their corners, and bats circling
  * over all three. All primitives, like the rest of the scene.
  */
@@ -41,6 +43,7 @@ const WALL_PUMPKINS: [number, number, number, boolean][] = [
 const GLOWS: [number, number, number][] = [
   [0.4, 0.45, -2.9],
   [LAB.gate.x, 1.2, LAB.gate.z + 1],
+  [WEB.gate.x, 1.2, WEB.gate.z + 1],
 ];
 
 function HomePumpkins() {
@@ -99,6 +102,40 @@ function LabPumpkins() {
       ))}
       {LAB.overhead.map((p, i) => (
         <Pumpkin key={i} position={p} size={0.26} bob={0.18} seed={i * 2.1 + 1} />
+      ))}
+    </>
+  );
+}
+
+/** The web products gate: the same string of bulbs and pumpkins, a pumpkin pile by each post */
+function WebPumpkins() {
+  return (
+    <>
+      <Garland {...WEB.garland} bulbs={BULBS} hangs={3}>
+        {(i) => hangingPumpkin(i + 7, i === 1 ? 0.17 : 0.13)}
+      </Garland>
+      {WEB.gateSides.map(([x, z], side) => (
+        <group key={side}>
+          <Pumpkin position={[x, 0.3 * 0.52, z]} size={0.3} yaw={(side ? -1 : 1) * 0.25} seed={side * 5 + 11} />
+          <Pumpkin position={[x + (side ? 0.4 : -0.4), 0.18 * 0.52, z - 0.25]} size={0.18} yaw={(side ? -1 : 1) * 0.5} seed={side * 5 + 13} lit={false} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** A lit pumpkin at the foot of every lamp along the road, grinning at the road */
+function RoadPumpkins() {
+  return (
+    <>
+      {ROAD_POSTS.map(({ pos, away }, i) => (
+        <Pumpkin
+          key={i}
+          position={[pos.x + away.x * 0.3, 0.2 * 0.52, pos.z + away.z * 0.3]}
+          size={0.2}
+          yaw={facingRoad(away)}
+          seed={i * 2.7 + 21}
+        />
       ))}
     </>
   );
@@ -196,10 +233,11 @@ interface BatFlock {
   height: [number, number];
 }
 
-// A flock across the home view, one round the castle's towers, one over the 3D lab, one over the museum
+// A flock across the home view, one round the castle's towers, one each over the web products and the 3D lab, one over the museum
 const FLOCKS: BatFlock[] = [
   { count: 9, center: [2.0, 0, -8.5], radius: [2.5, 5.5], height: [2.7, 4.6] },
   { count: 6, center: [7.2, 0, -13.5], radius: [3, 6], height: [6, 9] },
+  { count: 5, center: [CORRIDOR_X, 0, -25], radius: [2.5, 5], height: [6.2, 8.5] },
   { count: 7, center: [CORRIDOR_X, 0, -53], radius: [2.5, 5], height: [6.2, 8.5] },
   { count: 8, center: [MUSEUM_CENTER.x, 0, MUSEUM_CENTER.z - 4], radius: [3.5, 7], height: [6.2, 9] },
 ];
@@ -302,7 +340,9 @@ export default function HalloweenScene() {
     <>
       <PumpkinKit>
         <HomePumpkins />
+        <WebPumpkins />
         <LabPumpkins />
+        <RoadPumpkins />
         <MuseumHalloween />
       </PumpkinKit>
       <Glows />

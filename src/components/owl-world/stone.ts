@@ -180,3 +180,10 @@ export function stoneMaterial(
 
 // Shared tones
 export const STONE = { light: "#8a8172", dark: "#5f584e" };
+
+/**
+ * The cobbles of the road and the museum floor: stone courses laid flat,
+ * smaller than the castle's blocks. In world space, so where the road runs
+ * onto the floor the two line up
+ */
+export const cobbleMaterial = () => stoneMaterial("#7a7064", new THREE.Matrix4(), { tile: 1.3, bump: 1.6, weather: 0.7 });

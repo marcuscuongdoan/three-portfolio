@@ -7,17 +7,19 @@ import Falling, { type FallBox } from "@/themes/shared/Falling";
 import Fireworks from "@/themes/shared/Fireworks";
 import Garland from "@/themes/shared/Garland";
 import { LAB, LAB_FALL } from "@/themes/shared/lab";
+import { facingRoad, ROAD_POSTS, WEB, WEB_FALL } from "@/themes/shared/web";
 import { MUSEUM, MUSEUM_FALL } from "@/themes/shared/museum";
 import { MUSEUM_SKY, VALLEY_SKY } from "@/themes/shared/sky";
 
 /**
  * Tết: strings of red lanterns across the left of the home view, under the
- * 3D lab gate's sign and along the museum walls, more hung off the museum's
- * pylons, peach (đào) and apricot (mai) blossom drifting down over all
- * three, and fireworks down the valley and behind the museum.
+ * web products and 3D lab gates' signs and along the museum walls, more hung
+ * off every lamp post along the road and the museum's pylons, peach (đào)
+ * and apricot (mai) blossom drifting down all the way, and fireworks down
+ * the valley and behind the museum.
  */
 
-const PETALS: FallBox[] = [[320, 0.5, -5, 8, 8, 0, 6], LAB_FALL, MUSEUM_FALL];
+const PETALS: FallBox[] = [[320, 0.5, -5, 8, 8, 0, 6], WEB_FALL, LAB_FALL, MUSEUM_FALL];
 
 // The two posts the home string hangs between, clear of the mailbox and the statue
 const POST_A = new THREE.Vector3(-3.3, 2.6, -3.5);
@@ -87,11 +89,31 @@ function HomeLanterns() {
   );
 }
 
-function LabLanterns() {
+/** Under a gate's sign */
+function GateLanterns({ garland }: { garland: typeof LAB.garland }) {
   return (
-    <Garland {...LAB.garland} ropeColor="#7a1a14" bulbs={{ count: 12, colors: ["#ffd166"] }} hangs={3}>
+    <Garland {...garland} ropeColor="#7a1a14" bulbs={{ count: 12, colors: ["#ffd166"] }} hangs={3}>
       {(i) => <Lantern scale={i === 1 ? 0.8 : 0.65} />}
     </Garland>
+  );
+}
+
+/** A gold bracket out over the road from each lamp post, a lantern hanging off its end */
+function RoadLanterns() {
+  const m = useContext(Mats)!;
+  return (
+    <>
+      {ROAD_POSTS.map(({ pos, away }, i) => (
+        <group key={i} position={[pos.x, 1.42, pos.z]} rotation-y={facingRoad(away)}>
+          <mesh material={m.gold} position-z={0.17} rotation-x={Math.PI / 2}>
+            <cylinderGeometry args={[0.012, 0.012, 0.34, 6]} />
+          </mesh>
+          <group position-z={0.32}>
+            <Lantern scale={0.55} />
+          </group>
+        </group>
+      ))}
+    </>
   );
 }
 
@@ -125,7 +147,9 @@ function Glows() {
   return (
     <>
       <pointLight position={[(POST_A.x + POST_B.x) / 2, 1.8, (POST_A.z + POST_B.z) / 2]} color="#ff4a2a" intensity={2.5} distance={4} decay={1.8} />
-      <pointLight position={[LAB.gate.x, 4.6, LAB.gate.z + 0.6]} color="#ff4a2a" intensity={2.5} distance={4} decay={1.8} />
+      {[LAB.gate, WEB.gate].map((g, i) => (
+        <pointLight key={i} position={[g.x, 4.6, g.z + 0.6]} color="#ff4a2a" intensity={2.5} distance={4} decay={1.8} />
+      ))}
     </>
   );
 }
@@ -135,7 +159,9 @@ export default function LunarNewYearScene() {
     <>
       <MatsProvider>
         <HomeLanterns />
-        <LabLanterns />
+        <GateLanterns garland={WEB.garland} />
+        <GateLanterns garland={LAB.garland} />
+        <RoadLanterns />
         <MuseumLanterns />
       </MatsProvider>
       <Glows />

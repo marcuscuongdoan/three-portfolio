@@ -10,7 +10,7 @@ import { useOwlWorld } from "@/components/owl-world/owlStore";
 import { useQuality } from "@/components/owl-world/quality";
 import MergeStatic from "@/components/owl-world/MergeStatic";
 import { roundedRectGeometry, usePointerCursor } from "@/components/owl-world/Corridor";
-import { stoneMaterial } from "@/components/owl-world/stone";
+import { cobbleMaterial, stoneMaterial } from "@/components/owl-world/stone";
 import WarriorStatue from "@/components/owl-world/Statue";
 import { StopShadowSpot } from "@/components/owl-world/shadows";
 
@@ -53,7 +53,6 @@ const WALL_TITLES: [string, string][] = [
 const COLORS = {
   trim: "#efe5d3",
   gold: "#c9a45c",
-  floor: "#a9a6b6",
   inlay: "#b9a88f",
 };
 
@@ -324,6 +323,8 @@ function useStone() {
     return {
       // Big dressed blocks, finely jointed
       ashlar: stoneMaterial("#aaa396", world, { tile: 5.6, roughness: 0.8, bump: 0.6 }),
+      // The floor is cobbled like the road that leads in
+      cobbles: cobbleMaterial(),
       // Plain smooth limestone for the cornice, polished dark granite for the rest
       limestone: new THREE.MeshStandardMaterial({ color: "#b9b2a5", roughness: 0.7 }),
       granite: new THREE.MeshStandardMaterial({ color: "#3a3936", roughness: 0.32, metalness: 0.1 }),
@@ -427,10 +428,9 @@ export default function Museum() {
     <group position={[M.x, 0, M.z]}>
       {/* The building itself never moves: drawn as a few merged meshes */}
       <MergeStatic>
-        {/* Marble floor with an inlaid ring */}
-        <mesh rotation-x={-Math.PI / 2} position-y={0.02}>
+        {/* Cobbled floor with an inlaid ring */}
+        <mesh rotation-x={-Math.PI / 2} position-y={0.02} material={stone.cobbles}>
           <circleGeometry args={[MUSEUM_RADIUS + 3.5, 64]} />
-          <meshStandardMaterial color={COLORS.floor} roughness={0.85} />
         </mesh>
         <mesh rotation-x={-Math.PI / 2} position-y={0.05}>
           <ringGeometry args={[2.2, 2.45, 64]} />
@@ -526,7 +526,7 @@ export default function Museum() {
 
       {/* Loads on its own: the scene doesn't wait on the statue */}
       <Suspense fallback={null}>
-        {/* On the marble floor, which sits a touch above the ground */}
+        {/* On the cobbled floor, which sits a touch above the ground */}
         <WarriorStatue
           position={[Math.sin(WARRIOR.angle) * WARRIOR.radius, 0.02, -Math.cos(WARRIOR.angle) * WARRIOR.radius]}
           rotation-y={-WARRIOR.angle}

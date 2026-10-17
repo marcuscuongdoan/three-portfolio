@@ -19,6 +19,7 @@ import {
 } from "@/components/owl-world/foliage";
 import { windShadow, withWind, WindOptions } from "@/components/owl-world/wind";
 import { worldToHouse } from "@/components/owl-world/homePlan";
+import { onRoad } from "@/components/owl-world/Corridor";
 
 /**
  * Trees, shrubs and grass. The perch tree is grown around the owl (nothing in
@@ -272,11 +273,11 @@ const inMuseum = (x: number, z: number) => Math.hypot(x - MUSEUM_CENTER.x, z - M
 
 const GRASS_AREAS: { area: [number, number, number, number]; count: number; accept: (x: number, z: number) => boolean }[] = [
   // Home clearing
-  { area: [-12, 14, -22, 10], count: 650, accept: (x, z) => !inHouse(x, z) && !onPath(x, z) && !nearTrunk(x, z) },
-  // Along the flight corridor
-  { area: [CORRIDOR_X - 14, CORRIDOR_X + 14, -78, -10], count: 420, accept: () => true },
+  { area: [-12, 14, -22, 10], count: 650, accept: (x, z) => !inHouse(x, z) && !onPath(x, z) && !nearTrunk(x, z) && !onRoad(x, z) },
+  // Along the flight corridor, off the road
+  { area: [CORRIDOR_X - 14, CORRIDOR_X + 14, -78, -10], count: 420, accept: (x, z) => !onRoad(x, z) },
   // Round the museum
-  { area: [MUSEUM_CENTER.x - 22, MUSEUM_CENTER.x + 22, MUSEUM_CENTER.z - 22, MUSEUM_CENTER.z + 18], count: 260, accept: (x, z) => !inMuseum(x, z) },
+  { area: [MUSEUM_CENTER.x - 22, MUSEUM_CENTER.x + 22, MUSEUM_CENTER.z - 22, MUSEUM_CENTER.z + 18], count: 260, accept: (x, z) => !inMuseum(x, z) && !onRoad(x, z) },
 ];
 
 const BUSH_SPOTS: [number, number, number][] = [

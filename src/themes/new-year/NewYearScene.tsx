@@ -7,6 +7,7 @@ import Falling, { type FallBox } from "@/themes/shared/Falling";
 import Fireworks from "@/themes/shared/Fireworks";
 import Garland from "@/themes/shared/Garland";
 import { LAB, LAB_FALL } from "@/themes/shared/lab";
+import { facingRoad, ROAD_POSTS, WEB, WEB_FALL } from "@/themes/shared/web";
 import { MUSEUM, MUSEUM_FALL } from "@/themes/shared/museum";
 import { mulberry32 } from "@/themes/shared/random";
 import { MUSEUM_SKY, VALLEY_SKY } from "@/themes/shared/sky";
@@ -14,12 +15,14 @@ import { starGeometry } from "@/themes/shared/star";
 
 /**
  * New Year: fireworks down the valley and behind the museum, gold glitter
- * drifting over home, the 3D lab and the museum, strings of gold lights
- * hung with stars across the lab gate and the museum walls, and bunches of
- * balloons either side of the lab aisle and before the museum's outer pylons.
+ * drifting over home, the web products, the 3D lab and the museum, strings
+ * of gold lights hung with stars across both gates and the museum walls, a
+ * gold star topping every lamp along the road, and bunches of balloons by
+ * the web products gate, either side of the lab aisle and before the
+ * museum's outer pylons.
  */
 
-const GLITTER: FallBox[] = [[220, 1, -5, 8, 8, 0, 7], LAB_FALL, MUSEUM_FALL];
+const GLITTER: FallBox[] = [[220, 1, -5, 8, 8, 0, 7], WEB_FALL, LAB_FALL, MUSEUM_FALL];
 const BALLOON_COLORS = ["#e2b13c", "#c9d2e0", "#1d2a6b", "#f4ecdc"];
 
 function Stars({ from, to, sag, hangs = 5 }: { from: THREE.Vector3; to: THREE.Vector3; sag: number; hangs?: number }) {
@@ -55,6 +58,7 @@ function Stars({ from, to, sag, hangs = 5 }: { from: THREE.Vector3; to: THREE.Ve
 /** Where a bunch is tied, and which way (±1 in x) it leans out */
 type BalloonSpot = { x: number; z: number; out: number };
 const LAB_BALLOONS: BalloonSpot[] = LAB.aisleSides.map(([x, z], side) => ({ x: x + (side ? 0.9 : -0.9), z: z + 0.3, out: side ? 1 : -1 }));
+const WEB_BALLOONS: BalloonSpot[] = WEB.gateSides.map(([x, z], side) => ({ x, z, out: side ? 1 : -1 }));
 const MUSEUM_BALLOONS: BalloonSpot[] = MUSEUM.pylons
   .filter((p) => p.outer)
   .map((p, side) => {
@@ -131,11 +135,39 @@ function Balloons({ spots, seed }: { spots: BalloonSpot[]; seed: number }) {
   );
 }
 
+/** A gold star standing on top of each lamp along the road, facing the road */
+function LampStars() {
+  const { geometry, material } = useMemo(
+    () => ({
+      geometry: starGeometry(),
+      material: new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffd166").multiplyScalar(2.2), toneMapped: false, side: THREE.DoubleSide }),
+    }),
+    [],
+  );
+  useEffect(
+    () => () => {
+      geometry.dispose();
+      material.dispose();
+    },
+    [geometry, material],
+  );
+  return (
+    <>
+      {ROAD_POSTS.map(({ pos, away, height }, i) => (
+        <mesh key={i} geometry={geometry} material={material} position={[pos.x, height + 0.5, pos.z]} rotation-y={facingRoad(away)} scale={0.9} />
+      ))}
+    </>
+  );
+}
+
 export default function NewYearScene() {
   return (
     <>
       <Fireworks {...VALLEY_SKY} bursts={6} colors={["#ffd166", "#ff6f91", "#7ad7ff", "#b9ff8a"]} />
       <Falling boxes={GLITTER} colors={["#ffd166", "#fff1c1", "#ffb84d"]} size={4} speed={[0.25, 0.5]} sway={0.6} glow seed={21} />
+      <Stars {...WEB.garland} />
+      <Balloons spots={WEB_BALLOONS} seed={53} />
+      <LampStars />
       <Stars {...LAB.garland} />
       <Balloons spots={LAB_BALLOONS} seed={57} />
       {/* The museum */}
