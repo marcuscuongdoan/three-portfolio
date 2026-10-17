@@ -21,7 +21,7 @@ type Cue = {
 
 const NO_CUE: Cue = { lit: 0, titleHit: -1, even: false };
 const LAST_HIT = T.hits[T.hits.length - 1]!;
-const EVEN_FROM = LAST_HIT.at + T.flashHold;
+const EVEN_FROM = LAST_HIT.at + T.evenDelay;
 
 function cueAt(t: number): Cue {
   const lit = T.hits.filter((h) => t >= h.at).length;

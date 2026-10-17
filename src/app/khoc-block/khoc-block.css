@@ -26,7 +26,7 @@
   background-size: cover;
   background-position: center;
   filter: grayscale(1) blur(40px) brightness(var(--kb-backdrop, 0.06));
-  transition: filter 1.6s ease-out;
+  transition: filter var(--kb-ramp, 4s) cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 .kb-layer {
@@ -41,7 +41,8 @@
 /* Unlit portrait: almost black until the chorus lights it */
 .kb-base {
   filter: grayscale(1) contrast(1.3) brightness(var(--kb-base, 0.1));
-  transition: filter var(--kb-ramp, 1.6s) cubic-bezier(0.2, 0.7, 0.2, 1);
+  /* Even in-out, so the light swells instead of switching on */
+  transition: filter var(--kb-ramp, 4s) cubic-bezier(0.45, 0, 0.55, 1);
 }
 .kb-even .kb-base {
   --kb-base: 1;
@@ -63,7 +64,8 @@
 }
 .kb-even .kb-spot.is-lit {
   opacity: 0;
-  transition: opacity var(--kb-ramp, 1.6s) ease-out;
+  /* The spotlights melt into the even light as it rises */
+  transition: opacity var(--kb-ramp, 4s) cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 @keyframes kb-spot-flicker {

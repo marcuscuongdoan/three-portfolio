@@ -22,8 +22,10 @@ export const KHOC_BLOCK_TIMING = {
     { at: 121.61, word: "KHÓC", spot: "hand" },
     { at: 123.09, word: "BLÓCK", spot: "face" },
   ],
-  // Seconds the ramp from the last spotlight to even light takes
-  evenRamp: 1.6,
+  // After the last flash the whole portrait brightens gradually: it starts
+  // evenDelay seconds after the last hit (once its strobe has died) and takes evenRamp
+  evenDelay: 0.5,
+  evenRamp: 4,
   // Seconds a hit's title flash stays on screen
   flashHold: 1.1,
   // Where the music stops (end of the second chorus); null plays to the end of the track
