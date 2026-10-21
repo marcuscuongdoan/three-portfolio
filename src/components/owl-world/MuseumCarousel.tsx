@@ -5,9 +5,9 @@ import { LAB_APPS } from "@/data/apps";
 import { useOwlWorld } from "@/components/owl-world/owlStore";
 
 /**
- * Phones: the museum's three walls are too small to read at full-arc
- * distance, so a swipeable row of cards takes over. The centred card is the
- * frame the camera closes in on (and lights); tapping it opens the app.
+ * The museum's walls can be too small to read at full-arc distance, so a
+ * swipeable row of cards names every frame. The centred card's frame is lit
+ * (and, on phones, the one the camera closes in on); tapping it opens the app.
  */
 
 // Matches PORTRAIT_ASPECT in flightPath (width / height < 0.9)
@@ -76,7 +76,7 @@ export default function MuseumCarousel() {
         onScroll={onScroll}
         role="list"
         aria-label="3D lab apps"
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-[12vw] pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-[calc(50%-min(38vw,12rem))] pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         // Sideways swipes browse the cards; they mustn't scroll the page
         style={{ touchAction: "pan-x" }}
       >
@@ -90,9 +90,9 @@ export default function MuseumCarousel() {
             >
               {app.image ? (
                 // eslint-disable-next-line @next/next/no-img-element -- local preview, already loaded as a texture
-                <img src={app.image} alt="" className="aspect-[2/1] w-full object-cover" />
+                <img src={app.image} alt="" className="aspect-[2/1] w-full object-cover short:landscape:hidden" />
               ) : (
-                <div className="flex aspect-[2/1] w-full items-center justify-center text-lg font-bold text-white" style={{ background: `linear-gradient(135deg, #1d1a24, ${app.accent})` }}>
+                <div className="flex aspect-[2/1] w-full items-center justify-center text-lg font-bold text-white short:landscape:hidden" style={{ background: `linear-gradient(135deg, #1d1a24, ${app.accent})` }}>
                   {app.name}
                 </div>
               )}

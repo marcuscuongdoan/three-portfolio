@@ -118,9 +118,20 @@ const labApps: ShowcaseApp[] = [
     image: "/museum/miss-fortune.webp",
     accent: "#0ac8b9",
   },
+  {
+    id: "lab-3d-showcase",
+    name: "3D Showcase",
+    kind: "lab",
+    tagline: "Gas station, traffic and subway",
+    description: "I made this myself just for fun: twenty GLB models stream in with live progress, then come alive — cars refuel and back out, bikes loop the road, a train stops underground.",
+    url: "/3d-showcase",
+    external: false,
+    image: "/museum/3d-showcase.webp",
+    accent: "#f2a36b",
+  },
 ];
 
-// Pages on this site that aren't hung in the museum (its walls hold seven)
+// Pages on this site that aren't hung in the museum (its walls hold eight)
 const extraApps: ShowcaseApp[] = [
   {
     id: "extra-khoc-block",

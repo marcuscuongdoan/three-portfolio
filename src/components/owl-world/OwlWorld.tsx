@@ -178,7 +178,7 @@ const CAPTIONS: Record<number, { kicker: string; title: string; body: string; al
   [STOP_INDEX.museum]: {
     kicker: "03 · The Museum",
     title: "The 3D lab, on three walls",
-    body: "Every experiment that lives on this site. Hover a frame to light it up, click to step inside.",
+    body: "Every experiment that lives on this site. Hover a frame or pick a card below to light it up, click to step inside.",
     align: "center",
   },
 };
@@ -441,7 +441,7 @@ function Overlays() {
       </AnimatePresence>
       <ContactPanel visible={contactShown} />
       {active === STOP_INDEX.museum && <MuseumIndex />}
-      {active === STOP_INDEX.museum && portrait && <MuseumCarousel />}
+      {active === STOP_INDEX.museum && <MuseumCarousel />}
     </>
   );
 }

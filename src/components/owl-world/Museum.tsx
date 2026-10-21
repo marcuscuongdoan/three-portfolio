@@ -42,12 +42,12 @@ const BOTTOM_ROW = 1.82;
 const COL = 0.86;
 
 // Apps per wall, left to right (13 apps → 2·3·3·3·2)
-const WALL_COUNTS = [2, 3, 2];
+const WALL_COUNTS = [3, 2, 3];
 // Placards under the two-frame walls
 const WALL_TITLES: [string, string][] = [
-  ["3D Lab", "Interactive"],
   ["", ""],
-  ["Built here", "Three.js · React"],
+  ["3D Lab", "Built here · Three.js · React"],
+  ["", ""],
 ];
 
 const COLORS = {

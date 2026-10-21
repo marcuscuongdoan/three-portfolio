@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ["/g63", 0.8],
     ["/gas-turbine", 0.8],
     ["/trial", 0.6],
+    ["/3d-showcase", 0.6],
     ["/legends/miss-fortune", 0.5],
   ];
   return pages.map(([path, priority]) => ({
