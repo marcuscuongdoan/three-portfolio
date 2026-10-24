@@ -134,7 +134,7 @@ const labApps: ShowcaseApp[] = [
     name: "Expodia",
     kind: "lab",
     tagline: "Build your booth in a virtual expo",
-    description: "A 3D expo hall with 86 booth slots: pick a Basic, Pro or Premium booth, paint it, put your own product images on it — saved in your browser while traffic loops the ring road.",
+    description: "Revived from a broken project once built at Arobaby: a 3D expo hall with 86 booth slots — pick a Basic, Pro or Premium booth, paint it, put your own product images on it, saved in your browser, while traffic loops the ring road.",
     url: "/expodia",
     external: false,
     image: "/museum/expodia.webp",

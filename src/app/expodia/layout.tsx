@@ -5,7 +5,7 @@ import { SLOTS, TIERS, TRAFFIC } from "@/config/expodia";
 const PATH = "/expodia";
 const TITLE = "Expodia — Build Your Booth in a Virtual 3D Expo";
 const VEHICLES = TRAFFIC.ring.reduce((n, r) => n + r.count, 0) + TRAFFIC.avenue.angles.length * TRAFFIC.avenue.perAvenue;
-const DESCRIPTION = `A virtual 3D expo hall with ${SLOTS.length} booth slots. Pick a slot, choose a ${new Intl.ListFormat("en", { type: "disjunction" }).format(TIERS)} booth, paint it in your own colours and put your own product images on its display boxes — all saved in your browser — while ${VEHICLES} cars and motorbikes loop the ring road and shuttle in from the gates. Built with Three.js and React.`;
+const DESCRIPTION = `Revived from a broken project once built at Arobaby: a virtual 3D expo hall with ${SLOTS.length} booth slots. Pick a slot, choose a ${new Intl.ListFormat("en", { type: "disjunction" }).format(TIERS)} booth, paint it in your own colours and put your own product images on its display boxes — all saved in your browser — while ${VEHICLES} cars and motorbikes loop the ring road and shuttle in from the gates. Built with Three.js and React.`;
 
 // og:image / twitter:image come from opengraph-image.png and twitter-image.png
 // next to this file (Next adds them, with their alt text, automatically)
@@ -58,7 +58,7 @@ const jsonLd = {
   about: {
     "@type": "CreativeWork",
     name: "Expodia",
-    abstract: "A virtual expo where visitors set up their own exhibition booth.",
+    abstract: "A virtual expo where visitors set up their own exhibition booth, revived from a broken project once built at Arobaby.",
     creator: { "@type": "Person", name: "Marcus Cuong Doan" },
     genre: "Interactive 3D scene",
     keywords: "virtual expo, booth builder, glTF, Three.js",

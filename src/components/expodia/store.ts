@@ -66,6 +66,8 @@ interface ExpodiaState extends Saved {
   requestUpload: (slot: string, surface: string) => void;
   setExpoName: (name: string) => void;
   randomize: () => void;
+  fillAll: () => void;
+  clearSlots: () => void;
   resetAll: () => void;
 }
 
@@ -82,12 +84,13 @@ function shuffle<T>(list: T[]) {
 
 const SAMPLE_COUNT: Record<Tier, number> = { Basic: 6, Pro: 4, Premium: 2 };
 
-// A handful of booths in random slots, random models and colours, no pictures
-function sampleBooths(): Record<string, BoothConfig> {
+// Booths in random slots (a handful of each tier by default, or as many as
+// asked), random models and colours, no pictures
+function sampleBooths(counts: Record<Tier, number> = SAMPLE_COUNT): Record<string, BoothConfig> {
   const booths: Record<string, BoothConfig> = {};
   const now = Date.now();
-  for (const tier of Object.keys(SAMPLE_COUNT) as Tier[]) {
-    const slots = shuffle(SLOTS.filter((s) => s.tier === tier)).slice(0, SAMPLE_COUNT[tier]);
+  for (const tier of Object.keys(counts) as Tier[]) {
+    const slots = shuffle(SLOTS.filter((s) => s.tier === tier)).slice(0, counts[tier]);
     for (const s of slots) {
       const template = pick(TIER_INFO[tier].templates);
       const base = TEMPLATES[template].colors;
@@ -237,6 +240,17 @@ export const useExpodia = create<ExpodiaState>((set, get) => {
     randomize: () => {
       const booths = sampleBooths();
       set((s) => ({ booths, selected: null, log: addLog(s.log, "", `Shuffled: ${Object.keys(booths).length} new sample booths`) }));
+    },
+
+    fillAll: () => {
+      const booths = sampleBooths({ Basic: Infinity, Pro: Infinity, Premium: Infinity });
+      set((s) => ({ booths, log: addLog(s.log, "", `Filled every slot: ${Object.keys(booths).length} random booths`) }));
+    },
+
+    clearSlots: () => {
+      const n = Object.keys(get().booths).length;
+      if (!n) return;
+      set((s) => ({ booths: {}, log: addLog(s.log, "", `Cleared all ${n} booths`) }));
     },
 
     resetAll: () => {

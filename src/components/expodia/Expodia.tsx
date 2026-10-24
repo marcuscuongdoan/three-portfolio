@@ -324,7 +324,7 @@ function ExpoTab({ onFocus }: { onFocus: (slot: string) => void }) {
   const expoName = useExpodia((s) => s.expoName);
   const storageError = useExpodia((s) => s.storageError);
   const selected = useExpodia((s) => s.selected);
-  const { setExpoName, randomize, resetAll } = useExpodia.getState();
+  const { setExpoName, randomize, fillAll, clearSlots, resetAll } = useExpodia.getState();
   const used = useMemo(() => storageBytes({ expoName, booths, log }), [expoName, booths, log]);
   const entries = Object.entries(booths).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
   const images = entries.reduce((n, [, b]) => n + Object.keys(b.images).length, 0);
@@ -388,6 +388,35 @@ function ExpoTab({ onFocus }: { onFocus: (slot: string) => void }) {
       </div>
       {storageError && <p className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs text-rose-200">{storageError}</p>}
 
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          // Replaces every booth, so ask first when that would lose pictures
+          onClick={() => (images === 0 || window.confirm(`Fill every slot with a random booth? The ${images} images you added will be removed.`)) && fillAll()}
+          className="rounded-xl bg-sky-500 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-400"
+        >
+          Fill every slot
+        </button>
+        <button
+          type="button"
+          disabled={entries.length === 0}
+          onClick={() => window.confirm(`Remove all ${entries.length} booths from the expo?`) && clearSlots()}
+          className="rounded-xl border border-white/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Clear all slots
+        </button>
+        <button type="button" onClick={randomize} className="rounded-xl border border-white/10 px-3 py-2 text-sm hover:bg-white/10">
+          Shuffle samples
+        </button>
+        <button
+          type="button"
+          onClick={() => window.confirm("Clear every booth, image and change in this expo?") && resetAll()}
+          className="rounded-xl border border-white/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"
+        >
+          Reset all
+        </button>
+      </div>
+
       {entries.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold">Booths</h3>
@@ -407,18 +436,6 @@ function ExpoTab({ onFocus }: { onFocus: (slot: string) => void }) {
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button type="button" onClick={randomize} className="flex-1 rounded-xl border border-white/10 px-3 py-2 text-sm hover:bg-white/10">
-          Shuffle samples
-        </button>
-        <button
-          type="button"
-          onClick={() => window.confirm("Clear every booth, image and change in this expo?") && resetAll()}
-          className="rounded-xl border border-white/10 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10"
-        >
-          Reset all
-        </button>
-      </div>
     </div>
   );
 }
