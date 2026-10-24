@@ -31,6 +31,8 @@ export class VehicleRig {
   private hasPose = false;
   // Distance-weighted yaw rate, for steering and lean
   curvature = 0;
+  // Height of the surface it drives on (other scenes have other floors)
+  groundY = GROUND_Y;
 
   constructor(source: Object3D, kind: VehicleKind, file: string, rider?: { object: Object3D; file: string }) {
     this.kind = kind;
@@ -87,7 +89,7 @@ export class VehicleRig {
     }
     this.hasPose = true;
     this.lastYaw = yaw;
-    this.root.position.set(x, GROUND_Y, z);
+    this.root.position.set(x, this.groundY, z);
     this.root.rotation.y = yaw;
 
     const k = 1 - Math.exp(-dt * 8);
