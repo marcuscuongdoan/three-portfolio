@@ -129,9 +129,20 @@ const labApps: ShowcaseApp[] = [
     image: "/museum/3d-showcase.webp",
     accent: "#f2a36b",
   },
+  {
+    id: "lab-expodia",
+    name: "Expodia",
+    kind: "lab",
+    tagline: "Build your booth in a virtual expo",
+    description: "A 3D expo hall with 86 booth slots: pick a Basic, Pro or Premium booth, paint it, put your own product images on it — saved in your browser while traffic loops the ring road.",
+    url: "/expodia",
+    external: false,
+    image: "/museum/expodia.webp",
+    accent: "#00a2c7",
+  },
 ];
 
-// Pages on this site that aren't hung in the museum (its walls hold eight)
+// Pages on this site that aren't hung in the museum (its walls hold nine)
 const extraApps: ShowcaseApp[] = [
   {
     id: "extra-khoc-block",
